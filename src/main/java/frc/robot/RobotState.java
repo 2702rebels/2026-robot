@@ -1,12 +1,15 @@
 package frc.robot;
 
+import com.ctre.phoenix6.SignalLogger;
 import com.ctre.phoenix6.Utils;
+import com.ctre.phoenix6.swerve.SwerveDrivetrain.SwerveDriveState;
 import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.Matrix;
 import edu.wpi.first.math.VecBuilder;
 import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.numbers.N1;
 import edu.wpi.first.math.numbers.N3;
@@ -16,6 +19,8 @@ import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
+import frc.robot.generated.TunerConstants;
+import frc.robot.lib.SwerveTelemetry;
 import frc.robot.lib.TimestampedCircularBuffer;
 import frc.robot.lib.VisionState;
 import frc.robot.subsystems.CommandSwerveDrivetrain;
@@ -33,6 +38,7 @@ public class RobotState {
 
   private static final long kVisionCutoff = 60 * 1000; // microseconds
 
+  private static final double kStationaryVelocityTolerance = 0.1; // 10 cm/sec
   private static final double kStationarySpeedTolerance = 0.05; // 5 cm/sec
   private static final double kStationaryOmegaTolerance = Units.degreesToRadians(5); // 5 deg/sec
   private static final double kSlowSpeedTolerance = 1; // 1.0 m/sec
@@ -59,7 +65,20 @@ public class RobotState {
   private long visionPoseTimestamp = -1;
   private Pose2d visionPose = Pose2d.kZero;
 
-  private RobotState() {}
+  private RobotState() {
+    if (Constants.Settings.ctreLoggingEnabled) {
+      SignalLogger.setPath("/u/logs/ctre/");
+      SignalLogger.start();
+    }
+  }
+
+  /** Odometry trust (0 - no trust, 1 - full trust) */
+  @Logged(name = "OdometryTrust", importance = Importance.INFO)
+  private double odometryTrust = 0; // no trust initially
+
+  /** Odometry frequency in Hz */
+  @Logged(name = "OdometryFrequency", importance = Importance.DEBUG)
+  private double odometryFrequency;
 
   public static enum Intent {
     kNone,
@@ -68,10 +87,6 @@ public class RobotState {
   /** Robot intent */
   @Logged(name = "Intent", importance = Importance.INFO)
   public Intent intent = Intent.kNone;
-
-  /** Odometry trust (0 - no trust, 1 - full trust) */
-  @Logged(name = "OdometryTrust", importance = Importance.INFO)
-  private double odometryTrust = 0; // no trust initially
 
   /** Fused robot pose */
   @Logged(name = "RobotPose", importance = Importance.INFO)
@@ -105,12 +120,21 @@ public class RobotState {
     return drivetrain.getPitch();
   }
 
+  /** Orientation lock */
+  @Logged(name = "HasOrientationLock", importance = Importance.INFO)
+  public boolean hasOrientationLock() {
+    return drivetrain.hasOrientationLock();
+  }
+
   // spotless:off
   @Logged(name = "Idle", importance = Importance.INFO)
   public final Trigger idle = new Trigger(() -> intent == Intent.kNone);
 
   @Logged(name = "IsPoseTrusted", importance = Importance.INFO)
   public final Trigger isPoseTrusted = new Trigger(() -> odometryTrust >= kOdometryTrustThreshold);
+
+  @Logged(name = "SwerveTelemetry", importance = Importance.DEBUG)
+  public final SwerveTelemetry telemetry = new SwerveTelemetry();
   // spotless:on
 
   /** Binds drivetrain. */
@@ -132,9 +156,6 @@ public class RobotState {
             })
         .withName("SetIntent");
   }
-
-  // maintains most recent module slip ratios (to avoid allocations)
-  private final double[] moduleSlipRatios = new double[4];
 
   /** Resets odometry pose and restores trust. */
   private void resetOdometryPose(Pose2d pose) {
@@ -168,10 +189,9 @@ public class RobotState {
       final var fieldSpeeds = ChassisSpeeds.fromRobotRelativeSpeeds(robotSpeeds, rotation);
       chassisSpeeds.enqueue(timestamp, fieldSpeeds);
 
-      Telemetry.computeSlipRatios(driveState, moduleSlipRatios);
-
       // reduce trust in odometry if slippage is detected
-      final var maxSlipRatio = Arrays.stream(moduleSlipRatios).map(Math::abs).max().getAsDouble();
+      final var maxSlipRatio =
+          Arrays.stream(moduleSlipRatiosArray).map(Math::abs).max().getAsDouble();
       if (maxSlipRatio > kRobotSlipThreshold) {
         odometryTrust = Math.max(0, odometryTrust - kOdometryTrustPenalty);
       }
@@ -239,5 +259,76 @@ public class RobotState {
   /** Returns observed pose at the specified timestamp. */
   public Optional<Pose2d> getOdometryPoseAt(long timestamp) {
     return drivetrain != null ? drivetrain.getPoseAt(timestamp) : Optional.empty();
+  }
+
+  private final double[] poseArray = new double[3];
+  private final double[] moduleStatesArray = new double[8];
+  private final double[] moduleTargetsArray = new double[8];
+  private final double[] moduleSlipRatiosArray = new double[4];
+
+  /** Invoked by CTRE odometry thread. */
+  public void updateSwerveTelemetry(SwerveDriveState state) {
+    telemetry.rotation = state.Pose.getRotation();
+    telemetry.currentSpeeds = state.Speeds;
+    telemetry.currentStates = state.ModuleStates;
+    telemetry.desiredStates = state.ModuleTargets;
+    odometryFrequency = 1.0 / state.OdometryPeriod;
+
+    computeSlipRatios(state, moduleSlipRatiosArray);
+
+    // signal logger
+    if (Constants.Settings.ctreLoggingEnabled) {
+      poseArray[0] = state.Pose.getX();
+      poseArray[1] = state.Pose.getY();
+      poseArray[2] = state.Pose.getRotation().getDegrees();
+
+      for (var i = 0; i < state.ModuleStates.length; ++i) {
+        moduleStatesArray[i * 2 + 0] = state.ModuleStates[i].angle.getRadians();
+        moduleStatesArray[i * 2 + 1] = state.ModuleStates[i].speedMetersPerSecond;
+        moduleTargetsArray[i * 2 + 0] = state.ModuleTargets[i].angle.getRadians();
+        moduleTargetsArray[i * 2 + 1] = state.ModuleTargets[i].speedMetersPerSecond;
+      }
+
+      SignalLogger.writeDoubleArray("DriveState/Pose", poseArray);
+      SignalLogger.writeDoubleArray("DriveState/ModuleStates", moduleStatesArray);
+      SignalLogger.writeDoubleArray("DriveState/ModuleTargets", moduleTargetsArray);
+      SignalLogger.writeDoubleArray("DriveState/ModuleSlipRatios", moduleSlipRatiosArray);
+      SignalLogger.writeDouble("DriveState/OdometryPeriod", state.OdometryPeriod, "seconds");
+    }
+  }
+
+  /** Computes slip ratios for each module and populates the array. */
+  private static void computeSlipRatios(SwerveDriveState state, double[] slipRatios) {
+    // detect slippage by comparing translation velocities of the wheels with IMU velocity
+    final var robotVelocity =
+        new Translation2d(state.Speeds.vxMetersPerSecond, state.Speeds.vyMetersPerSecond);
+
+    final var robotVelocityNorm = robotVelocity.getNorm();
+
+    for (var i = 0; i < state.ModuleStates.length; ++i) {
+      final var moduleVelocity =
+          new Translation2d(
+              state.ModuleStates[i].speedMetersPerSecond, state.ModuleStates[i].angle);
+
+      final var moduleTranslationVelocity =
+          new Translation2d(
+              moduleVelocity.getX()
+                  + state.Speeds.omegaRadiansPerSecond * TunerConstants.modulePositions[i].getY(),
+              moduleVelocity.getY()
+                  - state.Speeds.omegaRadiansPerSecond * TunerConstants.modulePositions[i].getX());
+
+      // robot can be stationary, but can still slip if we are trying to push against an obstacle
+      if (MathUtil.isNear(0, robotVelocityNorm, kStationaryVelocityTolerance)) {
+        slipRatios[i] =
+            MathUtil.isNear(0, moduleTranslationVelocity.getNorm(), kStationaryVelocityTolerance)
+                ? 0
+                : 1;
+      } else {
+        // technically we should compute projections on the robot IMU velocity vector
+        // but all these vectors should be colinear unless the robot is falling apart
+        slipRatios[i] =
+            (moduleTranslationVelocity.getNorm() - robotVelocityNorm) / robotVelocityNorm;
+      }
+    }
   }
 }

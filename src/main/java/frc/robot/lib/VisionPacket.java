@@ -77,6 +77,13 @@ public class VisionPacket implements StructSerializable {
     }
 
     @Override
+    public Struct<?>[] getNested() {
+      return new Struct<?>[] {
+        AprilTagInfo.struct,
+      };
+    }
+
+    @Override
     public VisionPacket unpack(ByteBuffer bb) {
       return new VisionPacket(
           bb.get(),

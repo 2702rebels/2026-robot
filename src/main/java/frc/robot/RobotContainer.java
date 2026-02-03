@@ -28,7 +28,6 @@ import frc.robot.subsystems.LedVision;
 
 public class RobotContainer {
   private final RobotState state = RobotState.getInstance();
-  private final Telemetry telemetry = new Telemetry(Constants.Settings.ctreLoggingEnabled);
   private final CommandXboxController controllerDriver = new CommandXboxController(0);
   private final CommandSwerveDrivetrain drivetrain = TunerConstants.createDrivetrain();
 
@@ -38,9 +37,6 @@ public class RobotContainer {
 
   @Logged(name = "AprilTagDetector", importance = Importance.INFO)
   private final AprilTagDetector aprilTagDetector = new AprilTagDetector();
-
-  @Logged(name = "Drive/HasOrientationLock", importance = Importance.INFO)
-  private final Trigger hasOrientationLock = new Trigger(drivetrain::hasOrientationLock);
 
   private static final Trigger disabled = new Trigger(() -> false);
   private static final Trigger isAutonomousMode = new Trigger(DriverStation::isAutonomousEnabled);
@@ -101,7 +97,7 @@ public class RobotContainer {
       // controllerDriver.povRight().whileTrue(new WheelDiameterCharacterization(drivetrain, -1));
     }
 
-    drivetrain.registerTelemetry(telemetry::update);
+    drivetrain.registerTelemetry(state::updateSwerveTelemetry);
 
     resetIntentButton.onTrue(state.setIntent(Intent.kNone));
   }
