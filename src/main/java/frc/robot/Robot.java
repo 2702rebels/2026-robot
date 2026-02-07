@@ -20,6 +20,7 @@ import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
+import frc.robot.lib.MatchTime;
 import frc.robot.lib.PhoenixUtil;
 import frc.robot.lib.Tunable;
 import java.lang.management.GarbageCollectorMXBean;
@@ -52,6 +53,9 @@ public class Robot extends TimedRobot {
 
   @Logged(name = "State")
   private final RobotState robotState;
+
+  @Logged(name = "MatchTime")
+  private final MatchTime matchTime = new MatchTime(2026);
 
   public Robot() {
     vision = Vision.getInstance();
@@ -104,6 +108,8 @@ public class Robot extends TimedRobot {
 
   @Override
   public void robotPeriodic() {
+    matchTime.update(MatchTime.kGameData2026.get());
+
     // uncomment to run periodic at real-time priority, may introduce unintended side-effects, see:
     // https://docs.advantagekit.org/getting-started/template-projects/spark-swerve-template/#real-time-thread-priority
     // Threads.setCurrentThreadPriority(true, 99);
