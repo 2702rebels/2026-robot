@@ -3,7 +3,7 @@ plugins {
     id "edu.wpi.first.GradleRIO" version "2026.2.1"
 
     // used to extract GIT metadata for logging purposes, see
-    // https://github.com/Mechanical-Advantage/AdvantageKit/blob/main/docs/INSTALLATION.md#gversion-plugin-git-metadata
+    // https://docs.wpilib.org/en/stable/docs/software/advanced-gradlerio/deploy-git-data.html
     id "com.peterabeles.gversion" version "1.10"
 
     // code formatting

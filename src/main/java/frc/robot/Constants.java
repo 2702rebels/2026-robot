@@ -42,10 +42,28 @@ public final class Constants {
   }
 
   /** RoboRIO CAN identifiers */
-  public static final class CanID {}
+  public static final class CanID {
+    public static final int CANDUIT = 0;
+  }
 
   /** CANivore identifiers */
-  public static final class CanivoreID {}
+  public static final class CanivoreID {
+    public static final int MOTOR_SHOOTER_FLYWHEEL_LEADER = 0;
+    public static final int MOTOR_SHOOTER_FLYWHEEL_FOLLOWER = 0;
+    public static final int MOTOR_SHOOTER_HOOD = 0;
+    public static final int MOTOR_TURRET = 0;
+    public static final int MOTOR_HOPPER_SPINDEXER = 0;
+    public static final int MOTOR_HOPPER_FEED = 0;
+    public static final int MOTOR_INTAKE_ROLLER = 0;
+    public static final int MOTOR_INTAKE_DEPLOY = 0;
+    public static final int MOTOR_CLIMB = 0;
+  }
+
+  /** CANduit GPIO identifiers */
+  public static final class CANduitID {
+    public static final int TURRET_ENCODER1 = 0;
+    public static final int TURRET_ENCODER2 = 0;
+  }
 
   /** RoboRIO DIO identifiers */
   public static final class DioID {}

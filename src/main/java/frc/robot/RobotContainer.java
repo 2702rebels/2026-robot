@@ -19,6 +19,7 @@ import edu.wpi.first.wpilibj2.command.button.Trigger;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
 import frc.robot.RobotState.Intent;
 import frc.robot.generated.TunerConstants;
+import frc.robot.lib.CANduit;
 import frc.robot.lib.Tunable;
 import frc.robot.subsystems.AprilTagDetector;
 import frc.robot.subsystems.CommandSwerveDrivetrain;
@@ -49,7 +50,7 @@ public class RobotContainer {
   private final Trigger brakeButton = controllerDriver.b();
   private final Trigger resetIntentButton = controllerDriver.x();
 
-  public RobotContainer() {
+  public RobotContainer(CANduit canduit) {
     state.bind(drivetrain);
     state.setVisionStateSupplier(aprilTagDetector::getState);
 

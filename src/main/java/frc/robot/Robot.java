@@ -20,6 +20,7 @@ import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
+import frc.robot.lib.CANduit;
 import frc.robot.lib.MatchTime;
 import frc.robot.lib.PhoenixUtil;
 import frc.robot.lib.Tunable;
@@ -30,6 +31,7 @@ import java.util.List;
 public class Robot extends TimedRobot {
   private final GCStatsCollector gcStatsCollector = new GCStatsCollector();
   private final Vision vision;
+  private final CANduit canduit = new CANduit(Constants.CanID.CANDUIT);
 
   // spotless:off
   private final NetworkTable tableStats = NetworkTableInstance.getDefault().getTable("Stats");
@@ -60,7 +62,7 @@ public class Robot extends TimedRobot {
   public Robot() {
     vision = Vision.getInstance();
     robotState = RobotState.getInstance();
-    robotContainer = new RobotContainer();
+    robotContainer = new RobotContainer(canduit);
 
     if (Constants.Settings.rioLoggingEnabled) {
       DataLogManager.start(); // required for Epilogue data to be logged to disk
@@ -126,6 +128,7 @@ public class Robot extends TimedRobot {
       statsSignalsTopic.set((after - before) / 1000.0);
 
       before = after;
+      canduit.update();
       robotState.enterPeriodic();
       CommandScheduler.getInstance().run();
       robotState.exitPeriodic();
@@ -136,6 +139,7 @@ public class Robot extends TimedRobot {
     } else {
       Tunable.periodic();
       PhoenixUtil.refreshSignals();
+      canduit.update();
       robotState.enterPeriodic();
       CommandScheduler.getInstance().run();
       robotState.exitPeriodic();
