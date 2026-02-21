@@ -51,9 +51,10 @@ public final class Shooter extends SubsystemBase {
   private final VelocityTorqueCurrentFOC flywheelControl;
   private final PositionTorqueCurrentFOC hoodControl;
 
+  private boolean disabled;
+
   // indicates that the subsystem has been initialized by zeroing the position of the hood
   private boolean initialized;
-  private boolean disabled;
   private boolean hoodParked;
 
   private static final double kFlywheelStatorCurrentLimit = 60;
@@ -149,7 +150,18 @@ public final class Shooter extends SubsystemBase {
     hoodSetpoint = MathUtil.clamp(valueInRPM, 0, 3000);
   }
 
+  @Logged(name = "Initialized", importance = Importance.INFO)
+  public boolean isInitialized() {
+    return initialized;
+  }
+
+  @Logged(name = "HoodParked", importance = Importance.INFO)
+  public boolean isHoodParked() {
+    return hoodParked;
+  }
+
   /** Determines whether the subsystem is at its commanded setpoint. */
+  @Logged(name = "AtSetpoint", importance = Importance.INFO)
   public boolean isAtSetpoint() {
     return MathUtil.isNear(hoodSetpoint, getAngle(), kHoodPositionTolerance)
         && MathUtil.isNear(flywheelSetpoint, getVelocity(), kFlywheelVelocityTolerance);

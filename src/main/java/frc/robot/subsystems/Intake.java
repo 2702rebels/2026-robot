@@ -116,6 +116,11 @@ public final class Intake extends SubsystemBase {
     }
   }
 
+  @Logged(name = "Deployed", importance = Importance.INFO)
+  public boolean isDeployed() {
+    return deployed;
+  }
+
   /** Determines whether the subsystem is at its nominal state. */
   @Logged(name = "Nominal", importance = Importance.INFO)
   public boolean isNominal() {

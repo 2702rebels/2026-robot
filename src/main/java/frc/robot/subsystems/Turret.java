@@ -55,9 +55,10 @@ public final class Turret extends SubsystemBase {
   private final CANduit.PWMInput encoder2;
   private final EasyCRT crt;
 
+  private boolean disabled;
+
   // indicates that the subsystem has been initialized by determining the position of the turret
   private boolean initialized;
-  private boolean disabled;
 
   private static final double kStatorCurrentLimit = 30;
   private static final double kConversionFactor = 1;
@@ -94,7 +95,7 @@ public final class Turret extends SubsystemBase {
     encoder2 = canduit.createPWMInput(Constants.CANduitID.TURRET_ENCODER2);
     crt =
         new EasyCRT(
-            new EasyCRTConfig(() -> getEncoderAngle(encoder1), () -> getEncoderAngle(encoder2))
+            new EasyCRTConfig(this::getEncoder1Angle, this::getEncoder2Angle)
                 .withEncoderRatios(1, 1));
   }
 
@@ -104,8 +105,27 @@ public final class Turret extends SubsystemBase {
    */
   private static Angle getEncoderAngle(CANduit.PWMInput encoder) {
     // 0°: 1μs, 360°: 1024μs
-    final var v = encoder.getPulseWidth();
-    return Degrees.of(360.0 * (v / 1000.0 - 1) / 1023.0);
+    //
+    // REV encoders were found to be not agreeing to the specification,
+    // of those tested reported periods were 1010μs and 1034μs;
+    // we have also observed that pulse width does not go above 1025μs as per spec,
+    // when the reported period is higher than 1025μs;
+    //
+    // below formula seems to handle both situations reasonably well
+
+    final double v = encoder.getPulseWidth();
+    final double p = Math.min(encoder.getPeriod(), 1025000); // nanoseconds
+    return Degrees.of(360.0 * v / p);
+  }
+
+  @Logged(name = "Encoder1", importance = Importance.INFO)
+  public Angle getEncoder1Angle() {
+    return getEncoderAngle(encoder1);
+  }
+
+  @Logged(name = "Encoder2", importance = Importance.INFO)
+  public Angle getEncoder2Angle() {
+    return getEncoderAngle(encoder2);
   }
 
   @Override
@@ -116,13 +136,19 @@ public final class Turret extends SubsystemBase {
       motor.setControl(control.withPosition(setpoint * kConversionFactor));
     } else {
       // ensure both encoders are reporting valid readings
-      if (encoder1.getPulseWidth() >= 0 && encoder2.getPulseWidth() >= 0) {
+      if (encoder1.hasValue() && encoder2.hasValue()) {
         final var angle = crt.getAngleOptional();
       }
     }
   }
 
+  @Logged(name = "Initialized", importance = Importance.INFO)
+  public boolean isInitialized() {
+    return initialized;
+  }
+
   /** Determines whether the subsystem is at its commanded setpoint. */
+  @Logged(name = "AtSetpoint", importance = Importance.INFO)
   public boolean isAtSetpoint() {
     return MathUtil.isNear(setpoint, getPosition(), kTolerance);
   }

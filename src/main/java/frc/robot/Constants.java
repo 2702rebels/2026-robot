@@ -63,6 +63,7 @@ public final class Constants {
   public static final class CANduitID {
     public static final int TURRET_ENCODER1 = 0;
     public static final int TURRET_ENCODER2 = 0;
+    public static final int CLIMB_SENSOR = 0;
   }
 
   /** RoboRIO DIO identifiers */
