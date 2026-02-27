@@ -23,9 +23,13 @@ import frc.robot.lib.CANduit;
 import frc.robot.lib.Tunable;
 import frc.robot.subsystems.AprilTagDetector;
 import frc.robot.subsystems.CommandSwerveDrivetrain;
+import frc.robot.subsystems.Hopper;
+import frc.robot.subsystems.Intake;
 import frc.robot.subsystems.LedFeedback;
 import frc.robot.subsystems.LedResource;
 import frc.robot.subsystems.LedVision;
+import frc.robot.subsystems.Shooter;
+import frc.robot.subsystems.Turret;
 
 public class RobotContainer {
   private final RobotState state = RobotState.getInstance();
@@ -39,6 +43,18 @@ public class RobotContainer {
   @Logged(name = "AprilTagDetector", importance = Importance.INFO)
   private final AprilTagDetector aprilTagDetector = new AprilTagDetector();
 
+  @Logged(name = "Intake", importance = Importance.INFO)
+  private final Intake intake = new Intake(TunerConstants.kCANBus);
+
+  @Logged(name = "Hopper", importance = Importance.INFO)
+  private final Hopper hopper = new Hopper(TunerConstants.kCANBus);
+
+  @Logged(name = "Turret", importance = Importance.INFO)
+  private final Turret turret;
+
+  @Logged(name = "Shooter", importance = Importance.INFO)
+  private final Shooter shooter = new Shooter(TunerConstants.kCANBus);
+
   private static final Trigger disabled = new Trigger(() -> false);
   private static final Trigger isAutonomousMode = new Trigger(DriverStation::isAutonomousEnabled);
 
@@ -49,8 +65,11 @@ public class RobotContainer {
   private final Trigger resetOrientationButton = controllerDriver.start();
   private final Trigger brakeButton = controllerDriver.b();
   private final Trigger resetIntentButton = controllerDriver.x();
+  private final Trigger enableButton = controllerDriver.a();
 
   public RobotContainer(CANduit canduit) {
+    turret = new Turret(TunerConstants.kCANBus, canduit);
+
     state.bind(drivetrain);
     state.setVisionStateSupplier(aprilTagDetector::getState);
 
@@ -101,6 +120,16 @@ public class RobotContainer {
     drivetrain.registerTelemetry(state::updateSwerveTelemetry);
 
     resetIntentButton.onTrue(state.setIntent(Intent.kNone));
+
+    controllerDriver.rightTrigger().onTrue(hopper.enable().andThen(shooter.enable()));
+    // enableButton.onTrue(hopper.enable().andThen(shooter.enable()));
+    // enableButton.onTrue(shooter.enable());
+    enableButton.onTrue(intake.enable());
+
+    resetIntentButton.onTrue(hopper.disable().andThen(shooter.disable()).andThen(intake.disable()));
+
+    controllerDriver.y().onTrue(shooter.initialize());
+    // controllerDriver.b().onTrue(intake.enable().andThen(intake.deploy()));
   }
 
   /** Use this method to configure trigger bindings. */

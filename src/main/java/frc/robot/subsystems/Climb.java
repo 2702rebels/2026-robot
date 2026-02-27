@@ -58,9 +58,11 @@ public final class Climb extends SubsystemBase {
     control = new PositionTorqueCurrentFOC(0).withSlot(0);
 
     // make configuration tunable (must be done after configuration is bound to the motor)
-    Tunable.bind("Motor", motor);
+    Tunable.bind("Climb", motor);
 
     sensor = canduit.createPWMInput(Constants.CANduitID.CLIMB_SENSOR);
+
+    disabled = true;
   }
 
   /**

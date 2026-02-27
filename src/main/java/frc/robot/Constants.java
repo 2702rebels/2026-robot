@@ -43,27 +43,27 @@ public final class Constants {
 
   /** RoboRIO CAN identifiers */
   public static final class CanID {
-    public static final int CANDUIT = 0;
+    public static final int CANDUIT = -1;
   }
 
   /** CANivore identifiers */
   public static final class CanivoreID {
-    public static final int MOTOR_SHOOTER_FLYWHEEL_LEADER = 0;
-    public static final int MOTOR_SHOOTER_FLYWHEEL_FOLLOWER = 0;
-    public static final int MOTOR_SHOOTER_HOOD = 0;
-    public static final int MOTOR_TURRET = 0;
-    public static final int MOTOR_HOPPER_SPINDEXER = 0;
-    public static final int MOTOR_HOPPER_FEED = 0;
-    public static final int MOTOR_INTAKE_ROLLER = 0;
-    public static final int MOTOR_INTAKE_DEPLOY = 0;
-    public static final int MOTOR_CLIMB = 0;
+    public static final int MOTOR_SHOOTER_FLYWHEEL_LEADER = 37;
+    public static final int MOTOR_SHOOTER_FLYWHEEL_FOLLOWER = 38;
+    public static final int MOTOR_SHOOTER_HOOD = 39;
+    public static final int MOTOR_TURRET = 36;
+    public static final int MOTOR_HOPPER_SPINDEXER = 32;
+    public static final int MOTOR_HOPPER_FEED = 35;
+    public static final int MOTOR_INTAKE_ROLLER = 31;
+    public static final int MOTOR_INTAKE_DEPLOY = 33;
+    public static final int MOTOR_CLIMB = 34;
   }
 
   /** CANduit GPIO identifiers */
   public static final class CANduitID {
     public static final int TURRET_ENCODER1 = 0;
-    public static final int TURRET_ENCODER2 = 0;
-    public static final int CLIMB_SENSOR = 0;
+    public static final int TURRET_ENCODER2 = 1;
+    public static final int CLIMB_SENSOR = 2;
   }
 
   /** RoboRIO DIO identifiers */
@@ -117,16 +117,18 @@ public final class Constants {
     /** Rotation tolerance */
     public static final double kRotationTolerance = Units.degreesToRadians(2);
 
-    /** PID configuration for heading controllers */
-    public static final class Heading {
-      /** kP used for the rotation PID drive controllers */
-      public static final double rotationKp = 1;
+    /** PID configuration for cross-track controllers */
+    public static final class CrossTrack {
+      public static final double kP = 2;
+      public static final double kI = 0;
+      public static final double kD = 0;
+    }
 
-      /** kI used for the rotation PID drive controllers */
-      public static final double rotationKi = 0;
-
-      /** kD used for the rotation PID drive controllers */
-      public static final double rotationKd = 0;
+    /** PID configuration for rotation controllers */
+    public static final class Rotation {
+      public static final double kP = 1;
+      public static final double kI = 0;
+      public static final double kD = 0;
     }
   }
 

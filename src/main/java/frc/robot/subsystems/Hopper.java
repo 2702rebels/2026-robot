@@ -1,7 +1,10 @@
 package frc.robot.subsystems;
 
+import static edu.wpi.first.units.Units.*;
+
 import com.ctre.phoenix6.CANBus;
 import com.ctre.phoenix6.controls.VelocityTorqueCurrentFOC;
+import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
 import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
@@ -18,16 +21,16 @@ public final class Hopper extends SubsystemBase {
   // USE THEM TO INITIALIZE TUNABLE VALUES AND CONTROLLERS
   private static final double __kSpindexerS = 0;
   private static final double __kSpindexerV = 0;
-  private static final double __kSpindexerP = 0;
+  private static final double __kSpindexerP = 10;
   private static final double __kSpindexerD = 0;
 
   private static final double __kFeedS = 0;
   private static final double __kFeedV = 0;
-  private static final double __kFeedP = 0;
+  private static final double __kFeedP = 10;
   private static final double __kFeedD = 0;
 
-  private static final double __kSpindexerVelocity = 100; // RPMs
-  private static final double __kFeedVelocity = 100; // RPMs
+  private static final double __kSpindexerVelocity = 1000; // RPMs
+  private static final double __kFeedVelocity = 1500; // RPMs
 
   @Logged(name = "Spindexer", importance = Importance.INFO)
   private final LoggedTalonFX spindexerMotor;
@@ -41,7 +44,7 @@ public final class Hopper extends SubsystemBase {
   private boolean disabled;
 
   private static final double kSpindexerStatorCurrentLimit = 30;
-  private static final double kFeedStatorCurrentLimit = 30;
+  private static final double kFeedStatorCurrentLimit = 40;
 
   private static final double kSpindexerConversionFactor = (36 / 14) * (72 / 24);
   private static final double kSpindexerTolerance = 5; // RPMs
@@ -57,6 +60,7 @@ public final class Hopper extends SubsystemBase {
               config.CurrentLimits.StatorCurrentLimit = kSpindexerStatorCurrentLimit;
               config.CurrentLimits.StatorCurrentLimitEnable = true;
               config.MotorOutput.NeutralMode = NeutralModeValue.Coast;
+              config.MotorOutput.Inverted = InvertedValue.Clockwise_Positive;
 
               config.Slot0.kS = __kSpindexerS;
               config.Slot0.kV = __kSpindexerV;
@@ -72,6 +76,7 @@ public final class Hopper extends SubsystemBase {
               config.CurrentLimits.StatorCurrentLimit = kFeedStatorCurrentLimit;
               config.CurrentLimits.StatorCurrentLimitEnable = true;
               config.MotorOutput.NeutralMode = NeutralModeValue.Coast;
+              config.MotorOutput.Inverted = InvertedValue.Clockwise_Positive;
 
               config.Slot0.kS = __kFeedS;
               config.Slot0.kV = __kFeedV;
@@ -85,6 +90,8 @@ public final class Hopper extends SubsystemBase {
     // make configuration tunable (must be done after configuration is bound to the motor)
     Tunable.bind("Spindexer", spindexerMotor);
     Tunable.bind("Feed", feedMotor);
+
+    disabled = true;
   }
 
   @Override
@@ -94,8 +101,13 @@ public final class Hopper extends SubsystemBase {
       feedMotor.stopMotor();
     } else {
       spindexerMotor.setControl(
-          spindexerControl.withVelocity(kSpindexerVelocity.get() * kSpindexerConversionFactor));
-      feedMotor.setControl(feedControl.withVelocity(kFeedVelocity.get() * kFeedConversionFactor));
+          spindexerControl.withVelocity(
+              RotationsPerSecond.convertFrom(kSpindexerVelocity.get(), RPM)
+                  * kSpindexerConversionFactor));
+
+      feedMotor.setControl(
+          feedControl.withVelocity(
+              RotationsPerSecond.convertFrom(kFeedVelocity.get(), RPM) * kFeedConversionFactor));
     }
   }
 

@@ -92,4 +92,12 @@ public class LoggedTalonFX extends TalonFX {
   public double getPositionRotations() {
     return positionSignal.getValue().in(Rotations);
   }
+
+  public AngularVelocity getVelocityMeasured() {
+    return velocitySignal.getValue();
+  }
+
+  public Angle getPositionMeasured() {
+    return positionSignal.getValue();
+  }
 }

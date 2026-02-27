@@ -1,5 +1,7 @@
 package frc.robot.subsystems;
 
+import static edu.wpi.first.units.Units.*;
+
 import com.ctre.phoenix6.CANBus;
 import com.ctre.phoenix6.controls.PositionTorqueCurrentFOC;
 import com.ctre.phoenix6.controls.VelocityTorqueCurrentFOC;
@@ -7,6 +9,7 @@ import com.ctre.phoenix6.signals.NeutralModeValue;
 import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
@@ -19,22 +22,29 @@ public final class Intake extends SubsystemBase {
   // USE THEM TO INITIALIZE TUNABLE VALUES AND CONTROLLERS
   private static final double __kRollerS = 0;
   private static final double __kRollerV = 0;
-  private static final double __kRollerP = 0;
+  private static final double __kRollerP = 20;
   private static final double __kRollerD = 0;
 
   private static final double __kDeployS = 0;
   private static final double __kDeployV = 0;
-  private static final double __kDeployP = 0;
+  private static final double __kDeployP = 2;
   private static final double __kDeployD = 0;
 
-  private static final double __kRollerVelocity = 100; // RPMs
-  private static final double __kDeployPosition = 80;
+  private static final double __kRollerVelocity = 5000; // RPMs
+  private static final double __kDeployPosition =
+      0; // degrees (change to +90 appox. once properly stowed at the beginning)
 
   @Logged(name = "Roller", importance = Importance.INFO)
   private final LoggedTalonFX rollerMotor;
 
   @Logged(name = "Deploy", importance = Importance.INFO)
   private final LoggedTalonFX deployMotor;
+
+  @Logged(name = "Setpoint/Deploy", importance = Importance.INFO)
+  private Angle deploySetpoint;
+
+  @Logged(name = "Setpoint/Roller", importance = Importance.INFO)
+  private double rollerSetpoint;
 
   private final VelocityTorqueCurrentFOC rollerControl;
   private final PositionTorqueCurrentFOC deployControl;
@@ -47,9 +57,10 @@ public final class Intake extends SubsystemBase {
   private static final double kDeployStatorCurrentLimit = 30;
 
   private static final double kRollerConversionFactor = 29 / 18;
-  private static final double kDeployConversionFactor = (44 / 12) * 360; // converted to degrees
+  private static final double kDeployConversionFactor = 61.1;
   private static final double kRollerTolerance = 5; // RPMs
-  private static final double kDeployTolerance = 1; // degrees
+  private static final double kDeployTolerance = 2; // degrees
+  private static final double kStowedPosition = 0; // degrees
 
   public Intake(CANBus canbus) {
     rollerMotor =
@@ -91,6 +102,10 @@ public final class Intake extends SubsystemBase {
 
     // zero position based on the initial configuration
     deployMotor.setPosition(0);
+
+    disabled = true;
+    deploySetpoint = Degrees.of(kStowedPosition);
+    rollerSetpoint = 0;
   }
 
   @Override
@@ -99,20 +114,36 @@ public final class Intake extends SubsystemBase {
       rollerMotor.stopMotor();
       deployMotor.stopMotor();
     } else {
-      if (deployed) {
-        if (stopped) {
-          rollerMotor.stopMotor();
-        } else {
-          rollerMotor.setControl(
-              rollerControl.withVelocity(kRollerVelocity.get() * kRollerConversionFactor));
-        }
+      rollerSetpoint = kRollerVelocity.get();
+      rollerMotor.setControl(
+          rollerControl.withVelocity(
+              RotationsPerSecond.convertFrom(rollerSetpoint, RPM) * kRollerConversionFactor));
 
-        deployMotor.setControl(
-            deployControl.withPosition(kDeployPosition.get() * kDeployConversionFactor));
-      } else {
-        rollerMotor.stopMotor();
-        deployMotor.setControl(deployControl.withPosition(0));
-      }
+      deploySetpoint = Degrees.of(kDeployPosition.get());
+      deployMotor.setControl(
+          deployControl.withPosition(deploySetpoint.in(Rotations) * kDeployConversionFactor));
+
+      // if (deployed) {
+      //   deploySetpoint = Degrees.of(kDeployPosition.get());
+
+      //   if (stopped) {
+      //     rollerSetpoint = 0;
+      //     rollerMotor.stopMotor();
+      //   } else {
+      //     rollerSetpoint = kRollerVelocity.get();
+      //     rollerMotor.setControl(
+      //         rollerControl.withVelocity(
+      //             RotationsPerSecond.convertFrom(rollerSetpoint, RPM) *
+      // kRollerConversionFactor));
+      //   }
+      // } else {
+      //   deploySetpoint = Degrees.of(kStowedPosition);
+      //   rollerSetpoint = 0;
+      //   rollerMotor.stopMotor();
+      // }
+
+      // deployMotor.setControl(
+      //     deployControl.withPosition(deploySetpoint.in(Rotations) * kDeployConversionFactor));
     }
   }
 
@@ -124,11 +155,8 @@ public final class Intake extends SubsystemBase {
   /** Determines whether the subsystem is at its nominal state. */
   @Logged(name = "Nominal", importance = Importance.INFO)
   public boolean isNominal() {
-    return deployed
-        ? MathUtil.isNear(kDeployPosition.get(), getAngle(), kDeployTolerance)
-            && MathUtil.isNear(kRollerVelocity.get(), getVelocity(), kRollerTolerance)
-        : MathUtil.isNear(0, getAngle(), kDeployTolerance)
-            && MathUtil.isNear(0, getVelocity(), kRollerTolerance);
+    return MathUtil.isNear(deploySetpoint.in(Degrees), getAngle().in(Degrees), kDeployTolerance)
+        && MathUtil.isNear(rollerSetpoint, getVelocity(), kRollerTolerance);
   }
 
   @Logged(name = "Velocity", importance = Importance.INFO)
@@ -137,8 +165,8 @@ public final class Intake extends SubsystemBase {
   }
 
   @Logged(name = "Angle", importance = Importance.INFO)
-  public double getAngle() {
-    return deployMotor.getPositionRotations() / kDeployConversionFactor;
+  public Angle getAngle() {
+    return deployMotor.getPositionMeasured().div(kDeployConversionFactor);
   }
 
   /** Disables the subsystem. */

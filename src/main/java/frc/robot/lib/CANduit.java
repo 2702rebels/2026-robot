@@ -14,6 +14,7 @@ import java.util.Map;
 public class CANduit {
   private Map<Integer, Channel> channels = new HashMap<>();
   private final CAN can;
+  private final boolean connected;
 
   private static final int CLASS_SET_MODE = 1;
   private static final int CLASS_DIO = 2;
@@ -139,10 +140,17 @@ public class CANduit {
   /**
    * Initializes a CANduit device.
    *
-   * @param canID The CAN ID of the CANduit device.
+   * @param canID The CAN ID of the CANduit device. Negative identifier can be used to initialized
+   *     the device in disconnected mode.
    */
   public CANduit(int canID) {
-    this.can = new CAN(canID);
+    if (canID >= 0) {
+      this.can = new CAN(canID);
+      this.connected = true;
+    } else {
+      this.can = null;
+      this.connected = false;
+    }
   }
 
   /** Acquires the specified GPIO and exposes it as a digital input. */
@@ -188,6 +196,7 @@ public class CANduit {
 
   /** Configures GPIO mode. */
   private void configureGPIO(int gpio, int mode) {
+    if (!connected) return;
     int apiIndex = gpio;
     int apiId = CLASS_SET_MODE << 4 | apiIndex;
     byte[] data = {(byte) mode};
@@ -196,11 +205,13 @@ public class CANduit {
 
   /** Reads low-level data from the CAN. Returns latest packet. */
   private boolean readDataLatest(int gpio, int apiClass, CANData data) {
+    if (!connected) return false;
     return can.readPacketLatest(apiClass << 4 | gpio, data);
   }
 
   /** Writes low-level data to the CAN. */
   private void writeData(int gpio, int apiClass, byte[] data) {
+    if (!connected) return;
     can.writePacket(data, apiClass << 4 | gpio);
   }
 }

@@ -11,6 +11,7 @@ import com.ctre.phoenix6.swerve.SwerveRequest;
 import com.ctre.phoenix6.swerve.SwerveRequest.ForwardPerspectiveValue;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.Matrix;
+import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.filter.SlewRateLimiter;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
@@ -29,6 +30,7 @@ import frc.robot.Constants;
 import frc.robot.Constants.DriveConstants;
 import frc.robot.generated.TunerConstants.TunerSwerveDrivetrain;
 import frc.robot.lib.SysIdSwerveTranslationTorqueCurrent;
+import frc.robot.lib.Tunable;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -72,37 +74,33 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
   // swerve request to apply for brake position (X configuration)
   private final SwerveRequest.SwerveDriveBrake brake = new SwerveRequest.SwerveDriveBrake();
 
-  // swerve request for teleop driving
-  private final SwerveRequest.FieldCentric drive =
+  // swerve request for field-centric driving
+  private final SwerveRequest.FieldCentric driveField =
       new SwerveRequest.FieldCentric()
           .withDeadband(maxSpeedMetersPerSecond * kControllerDeadband)
           .withRotationalDeadband(maxAngularRateRadiansPerSecond * kControllerDeadband)
           .withDriveRequestType(DriveRequestType.Velocity);
 
-  // swerve request for teleop driving with orientation lock
-  private final SwerveRequest.FieldCentricFacingAngle driveFacingAngle =
+  // swerve request for field-centric driving with orientation lock
+  private final SwerveRequest.FieldCentricFacingAngle driveFieldFacingAngle =
       new SwerveRequest.FieldCentricFacingAngle()
           .withDeadband(maxSpeedMetersPerSecond * kControllerDeadband)
           .withRotationalDeadband(maxAngularRateRadiansPerSecond * kControllerDeadband)
           .withDriveRequestType(DriveRequestType.Velocity)
           .withHeadingPID(
-              DriveConstants.Heading.rotationKp,
-              DriveConstants.Heading.rotationKi,
-              DriveConstants.Heading.rotationKd);
+              DriveConstants.Rotation.kP, DriveConstants.Rotation.kI, DriveConstants.Rotation.kD);
 
-  // swerve request for auto driving
+  // swerve request for robot-centric driving
   private final SwerveRequest.RobotCentric driveRobot =
       new SwerveRequest.RobotCentric().withDriveRequestType(DriveRequestType.Velocity);
 
-  // swerve request for auto driving with orientation lock
+  // swerve request for robot-centric driving with orientation lock
   private final SwerveRequest.RobotCentricFacingAngle driveRobotFacingAngle =
       new SwerveRequest.RobotCentricFacingAngle()
           .withForwardPerspective(ForwardPerspectiveValue.BlueAlliance)
           .withDriveRequestType(DriveRequestType.Velocity)
           .withHeadingPID(
-              DriveConstants.Heading.rotationKp,
-              DriveConstants.Heading.rotationKi,
-              DriveConstants.Heading.rotationKd);
+              DriveConstants.Rotation.kP, DriveConstants.Rotation.kI, DriveConstants.Rotation.kD);
 
   // swerve request for pointing wheels forward
   private final SwerveRequest.PointWheelsAt wheelsForward =
@@ -199,10 +197,21 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
   // angle for orientation lock
   private Optional<Rotation2d> orientationLock = Optional.empty();
 
+  private final PIDController crossTrackController =
+      new PIDController(
+          DriveConstants.CrossTrack.kP,
+          DriveConstants.CrossTrack.kI,
+          DriveConstants.CrossTrack.kD,
+          Constants.cyclePeriodSeconds);
+
   private void init() {
     if (Utils.isSimulation()) {
       startSimThread();
     }
+
+    crossTrackController.setTolerance(Constants.DriveConstants.kTranslationTolerance);
+
+    Tunable.bind("Drive/CrossTrack", crossTrackController);
   }
 
   /**
@@ -405,17 +414,15 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
 
   /**
    * Drives with the specified field-relative input velocities and omega. Honors orientation lock.
-   *
-   * <p>Use this version for teleop control.
    */
   public void driveAtFieldRelative(double vx, double vy, double omega) {
     final var request =
         orientationLock.isPresent()
-            ? driveFacingAngle
+            ? driveFieldFacingAngle
                 .withVelocityX(vx)
                 .withVelocityY(vy)
                 .withTargetDirection(orientationLock.get())
-            : drive.withVelocityX(vx).withVelocityY(vy).withRotationalRate(omega);
+            : driveField.withVelocityX(vx).withVelocityY(vy).withRotationalRate(omega);
 
     setControl(request);
   }
@@ -423,8 +430,6 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
   /**
    * Drives with the specified robot-relative input velocities and omega. Honors orientation lock.
    * Uses field-perspective aka blue alliance origin.
-   *
-   * <p>Use this version for autonomous control.
    */
   public void driveAtRobotRelative(double vx, double vy, double omega) {
     final var request =

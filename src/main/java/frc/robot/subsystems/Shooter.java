@@ -1,14 +1,19 @@
 package frc.robot.subsystems;
 
+import static edu.wpi.first.units.Units.*;
+
 import com.ctre.phoenix6.CANBus;
 import com.ctre.phoenix6.controls.Follower;
 import com.ctre.phoenix6.controls.PositionTorqueCurrentFOC;
 import com.ctre.phoenix6.controls.VelocityTorqueCurrentFOC;
+import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.MotorAlignmentValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
 import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.units.measure.Angle;
+import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.FunctionalCommand;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
@@ -21,16 +26,19 @@ public final class Shooter extends SubsystemBase {
   // MAKE SURE TO UPDATE THESE VALUES AFTER TUNING
   // DO NOT USE THESE VALUES DIRECTLY IN PERIODIC CODE,
   // USE THEM TO INITIALIZE TUNABLE VALUES AND CONTROLLERS
-  private static final double __kFlywheelS = 0;
-  private static final double __kFlywheelV = 0;
-  private static final double __kFlywheelP = 0;
+  private static final double __kFlywheelS = 6.85;
+  private static final double __kFlywheelV = 0.023;
+  private static final double __kFlywheelP = 10;
   private static final double __kFlywheelD = 0;
   private static final double __kHoodG = 0;
   private static final double __kHoodS = 0;
-  private static final double __kHoodP = 0;
+  private static final double __kHoodP = 2;
   private static final double __kHoodD = 0;
 
-  private static final double __kHoodParkAngle = 85;
+  private static final double __kHoodParkAngle = 5;
+
+  private static final double __kHoodManual = 10;
+  private static final double __kFlywheelManual = 3500; // RPMs
 
   @Logged(name = "Flywheel/Leader", importance = Importance.INFO)
   private final LoggedTalonFX flywheelMotorLeader;
@@ -45,7 +53,7 @@ public final class Shooter extends SubsystemBase {
   private double flywheelSetpoint;
 
   @Logged(name = "Setpoint/Hood", importance = Importance.INFO)
-  private double hoodSetpoint;
+  private Angle hoodSetpoint;
 
   private final Follower followerControl;
   private final VelocityTorqueCurrentFOC flywheelControl;
@@ -57,13 +65,18 @@ public final class Shooter extends SubsystemBase {
   private boolean initialized;
   private boolean hoodParked;
 
-  private static final double kFlywheelStatorCurrentLimit = 60;
-  private static final double kHoodStatorCurrentLimit = 30;
+  // manual mode used for testing
+  private boolean manual;
 
-  private static final double kHoodPositionMin = 40; // degrees
-  private static final double KHoodPositionMax = 85; // degrees
+  private static final double kFlywheelStatorCurrentLimit = 60;
+  private static final double kHoodStatorCurrentLimit = 20;
+
+  private static final double kHoodPositionMin = 0; // degrees
+  private static final double KHoodPositionMax = 33; // degrees
   private static final double kHoodPositionTolerance = 0.5; // degrees
-  private static final double kHoodConversionFactor = 1;
+  private static final double kHoodConversionFactor = 108;
+
+  private static final double kFlywheelVelocityMax = 5000;
   private static final double kFlywheelVelocityTolerance = 3; // RPMs
 
   public Shooter(CANBus canbus) {
@@ -100,6 +113,7 @@ public final class Shooter extends SubsystemBase {
               config.CurrentLimits.StatorCurrentLimit = kHoodStatorCurrentLimit;
               config.CurrentLimits.StatorCurrentLimitEnable = true;
               config.MotorOutput.NeutralMode = NeutralModeValue.Brake;
+              config.MotorOutput.Inverted = InvertedValue.Clockwise_Positive;
 
               config.Slot0.kG = __kHoodG;
               config.Slot0.kS = __kHoodS;
@@ -123,6 +137,12 @@ public final class Shooter extends SubsystemBase {
     Tunable.bind("Hood", hoodMotor);
 
     reset();
+
+    disabled = true;
+    hoodSetpoint = Degrees.zero();
+    flywheelSetpoint = 0;
+
+    manual = true; // FOR TESTING ONLY
   }
 
   @Override
@@ -131,10 +151,18 @@ public final class Shooter extends SubsystemBase {
       flywheelMotorLeader.stopMotor();
       hoodMotor.stopMotor();
     } else if (initialized) {
-      flywheelMotorLeader.setControl(flywheelControl.withVelocity(flywheelSetpoint));
+      if (manual) {
+        flywheelSetpoint = kFlywheelManual.get();
+        hoodSetpoint = Degrees.of(kHoodManual.get());
+      }
+
+      flywheelMotorLeader.setControl(
+          flywheelControl.withVelocity(RotationsPerSecond.convertFrom(flywheelSetpoint, RPM)));
+
+      final var hoodSetpointActual = hoodParked ? Degrees.of(kHoodParkAngle.get()) : hoodSetpoint;
+
       hoodMotor.setControl(
-          hoodControl.withPosition(
-              (hoodParked ? kHoodParkAngle.get() : hoodSetpoint) * kHoodConversionFactor));
+          hoodControl.withPosition(hoodSetpointActual.in(Rotations) * kHoodConversionFactor));
     }
   }
 
@@ -142,12 +170,13 @@ public final class Shooter extends SubsystemBase {
     hoodMotor.setPosition(0);
   }
 
-  private void setAngle(double valueInDegrees) {
-    hoodSetpoint = MathUtil.clamp(valueInDegrees, kHoodPositionMin, KHoodPositionMax);
+  private void setAngle(Angle value) {
+    hoodSetpoint =
+        Degrees.of(MathUtil.clamp(value.in(Degrees), kHoodPositionMin, KHoodPositionMax));
   }
 
-  private void setVelocity(double valueInRPM) {
-    hoodSetpoint = MathUtil.clamp(valueInRPM, 0, 3000);
+  private void setVelocity(AngularVelocity value) {
+    flywheelSetpoint = MathUtil.clamp(value.in(RPM), 0, kFlywheelVelocityMax);
   }
 
   @Logged(name = "Initialized", importance = Importance.INFO)
@@ -163,13 +192,13 @@ public final class Shooter extends SubsystemBase {
   /** Determines whether the subsystem is at its commanded setpoint. */
   @Logged(name = "AtSetpoint", importance = Importance.INFO)
   public boolean isAtSetpoint() {
-    return MathUtil.isNear(hoodSetpoint, getAngle(), kHoodPositionTolerance)
+    return MathUtil.isNear(hoodSetpoint.in(Degrees), getAngle().in(Degrees), kHoodPositionTolerance)
         && MathUtil.isNear(flywheelSetpoint, getVelocity(), kFlywheelVelocityTolerance);
   }
 
   @Logged(name = "Angle", importance = Importance.INFO)
-  public double getAngle() {
-    return hoodMotor.getPositionRotations() / kHoodConversionFactor;
+  public Angle getAngle() {
+    return hoodMotor.getPositionMeasured().div(kHoodConversionFactor);
   }
 
   @Logged(name = "Velocity", importance = Importance.INFO)
@@ -233,16 +262,18 @@ public final class Shooter extends SubsystemBase {
   }
 
   /** Sets shooting parameters: hood angle and flwyheel velocity. */
-  public Command setParameters(double angleInDegrees, double speedInRPM) {
+  public Command setParameters(Angle angle, AngularVelocity speed) {
     return runOnce(
             () -> {
-              setAngle(angleInDegrees);
-              setVelocity(speedInRPM);
+              setAngle(angle);
+              setVelocity(speed);
             })
         .withName("SetParameters");
   }
 
   // spotless:off
   private static Tunable.DoubleValue kHoodParkAngle = Tunable.value("Hood/ParkAngle", __kHoodParkAngle);
+  private static Tunable.DoubleValue kFlywheelManual = Tunable.value("Flywheel/Manual", __kFlywheelManual);
+  private static Tunable.DoubleValue kHoodManual = Tunable.value("Hood/Manual", __kHoodManual);
   // spotless:on
 }

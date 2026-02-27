@@ -47,7 +47,7 @@ public final class Turret extends SubsystemBase {
   private final LoggedTalonFX motor;
 
   @Logged(name = "Setpoint", importance = Importance.INFO)
-  private double setpoint;
+  private Angle setpoint;
 
   private final MotionMagicExpoTorqueCurrentFOC control;
 
@@ -62,6 +62,8 @@ public final class Turret extends SubsystemBase {
 
   private static final double kStatorCurrentLimit = 30;
   private static final double kConversionFactor = 1;
+  private static final double kMinPosition = 0; // degrees
+  private static final double kMaxPosition = 270; // degrees
   private static final double kTolerance = 1;
 
   public Turret(CANBus canbus, CANduit canduit) {
@@ -87,8 +89,8 @@ public final class Turret extends SubsystemBase {
     control = new MotionMagicExpoTorqueCurrentFOC(0).withSlot(0);
 
     // make configuration tunable (must be done after configuration is bound to the motor)
-    Tunable.bind("Motor", motor);
-    Tunable.bindMotionProfile("Motor/Motion", motor);
+    Tunable.bind("Turret", motor);
+    Tunable.bindMotionProfile("Turret/Motion", motor);
 
     // TODO: CRT configuration
     encoder1 = canduit.createPWMInput(Constants.CANduitID.TURRET_ENCODER1);
@@ -97,6 +99,9 @@ public final class Turret extends SubsystemBase {
         new EasyCRT(
             new EasyCRTConfig(this::getEncoder1Angle, this::getEncoder2Angle)
                 .withEncoderRatios(1, 1));
+
+    disabled = true;
+    setpoint = Degrees.zero();
   }
 
   /**
@@ -133,7 +138,7 @@ public final class Turret extends SubsystemBase {
     if (disabled) {
       motor.stopMotor();
     } else if (initialized) {
-      motor.setControl(control.withPosition(setpoint * kConversionFactor));
+      motor.setControl(control.withPosition(setpoint.in(Rotations) * kConversionFactor));
     } else {
       // ensure both encoders are reporting valid readings
       if (encoder1.hasValue() && encoder2.hasValue()) {
@@ -150,12 +155,12 @@ public final class Turret extends SubsystemBase {
   /** Determines whether the subsystem is at its commanded setpoint. */
   @Logged(name = "AtSetpoint", importance = Importance.INFO)
   public boolean isAtSetpoint() {
-    return MathUtil.isNear(setpoint, getPosition(), kTolerance);
+    return MathUtil.isNear(setpoint.in(Degrees), getPosition().in(Degrees), kTolerance);
   }
 
   @Logged(name = "Position", importance = Importance.INFO)
-  public double getPosition() {
-    return motor.getPositionRotations() / kConversionFactor;
+  public Angle getPosition() {
+    return motor.getPositionMeasured().div(kConversionFactor);
   }
 
   /** Disables the subsystem. */
@@ -180,7 +185,7 @@ public final class Turret extends SubsystemBase {
   public Command setPosition(double position) {
     return runOnce(
             () -> {
-              setpoint = MathUtil.clamp(position, 0, 270);
+              setpoint = Degrees.of(MathUtil.clamp(position, kMinPosition, kMaxPosition));
             })
         .withName("SetPosition");
   }
