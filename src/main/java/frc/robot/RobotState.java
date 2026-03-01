@@ -1,5 +1,7 @@
 package frc.robot;
 
+import static edu.wpi.first.units.Units.*;
+
 import com.ctre.phoenix6.SignalLogger;
 import com.ctre.phoenix6.Utils;
 import com.ctre.phoenix6.swerve.SwerveDrivetrain.SwerveDriveState;
@@ -15,11 +17,15 @@ import edu.wpi.first.math.numbers.N1;
 import edu.wpi.first.math.numbers.N3;
 import edu.wpi.first.math.util.Units;
 import edu.wpi.first.units.measure.Angle;
+import edu.wpi.first.units.measure.Time;
+import edu.wpi.first.units.measure.Voltage;
 import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.robot.generated.TunerConstants;
+import frc.robot.lib.GamePhaseTracker.Phase;
+import frc.robot.lib.GamePhaseTracker.PhaseInfo;
 import frc.robot.lib.SwerveTelemetry;
 import frc.robot.lib.TimestampedCircularBuffer;
 import frc.robot.lib.VisionState;
@@ -46,6 +52,7 @@ public class RobotState {
   private static final double kRobotSlipThreshold = 0.3;
   private static final double kOdometryTrustThreshold = 0.8;
   private static final double kOdometryTrustPenalty = 0.05;
+  private static final double kLowBatteryVoltage = 11.0;
 
   // std.dev for vision: we do trust vision so set these relatively low
   private static final Matrix<N3, N1> kVisionStdDevs =
@@ -62,8 +69,16 @@ public class RobotState {
   // external vision state supplier
   private Supplier<VisionState> visionStateSupplier;
 
+  // external game phase supplier
+  private Supplier<PhaseInfo> phaseInfoSupplier;
+
+  private Voltage batteryVoltage = Volts.zero();
   private long visionPoseTimestamp = -1;
   private Pose2d visionPose = Pose2d.kZero;
+  private Phase phase;
+  private Time phaseElapsedTime = Seconds.zero();
+  private Time phaseRemainingTime = Seconds.zero();
+  private boolean hubActive;
 
   private RobotState() {
     if (Constants.Settings.ctreLoggingEnabled) {
@@ -80,22 +95,35 @@ public class RobotState {
   @Logged(name = "OdometryFrequency", importance = Importance.DEBUG)
   private double odometryFrequency;
 
+  /** Battery voltage */
+  @Logged(name = "BatteryVoltage", importance = Importance.INFO)
+  public Voltage getBatteryVoltage() {
+    return batteryVoltage;
+  }
+
+  /** Low battery condition */
+  @Logged(name = "IsLowBattery", importance = Importance.INFO)
+  public boolean isLowBattery() {
+    final var v = batteryVoltage.in(Volts);
+    return v > 0 && v < kLowBatteryVoltage;
+  }
+
   public static enum Intent {
     kNone,
   }
 
   /** Robot intent */
-  @Logged(name = "Intent", importance = Importance.INFO)
+  @Logged(name = "Intent", importance = Importance.CRITICAL)
   public Intent intent = Intent.kNone;
 
   /** Fused robot pose */
-  @Logged(name = "RobotPose", importance = Importance.INFO)
+  @Logged(name = "RobotPose", importance = Importance.CRITICAL)
   public Pose2d getRobotPose() {
     return drivetrain.getPose();
   }
 
   /** Vision robot pose */
-  @Logged(name = "VisionPose", importance = Importance.INFO)
+  @Logged(name = "VisionPose", importance = Importance.CRITICAL)
   public Pose2d getVisionPose() {
     return visionPose;
   }
@@ -104,7 +132,7 @@ public class RobotState {
   @Logged(name = "VisionPoseAgeMS", importance = Importance.DEBUG)
   public double getVisionPoseAge() {
     return visionPoseTimestamp > 0
-        ? (RobotController.getFPGATime() - visionPoseTimestamp) / 1000.0
+        ? (RobotController.getTime() - visionPoseTimestamp) / 1000.0
         : -1;
   }
 
@@ -137,6 +165,34 @@ public class RobotState {
   public final SwerveTelemetry telemetry = new SwerveTelemetry();
   // spotless:on
 
+  /** Indicator that auto win alliance information is missing */
+  @Logged(name = "MissingAutoWinAlliance", importance = Importance.CRITICAL)
+  public boolean missingAutoWinAlliance;
+
+  /** Current game phase */
+  @Logged(name = "Game/Phase")
+  public Phase getGamePhase() {
+    return phase;
+  }
+
+  /** Current game phase elapsed time */
+  @Logged(name = "Game/PhaseElapsedTime")
+  public Time getGamePhaseElapsedTime() {
+    return phaseElapsedTime;
+  }
+
+  /** Current game phase remaining time */
+  @Logged(name = "Game/PhaseRemainingTime")
+  public Time getGamePhaseRemainingTime() {
+    return phaseRemainingTime;
+  }
+
+  /** Hub active status */
+  @Logged(name = "Game/HubActive")
+  public boolean isHubActive() {
+    return hubActive;
+  }
+
   /** Binds drivetrain. */
   public void bind(CommandSwerveDrivetrain drivetrain) {
     this.drivetrain = drivetrain;
@@ -146,6 +202,11 @@ public class RobotState {
   /** Binds external vision state supplier. */
   public void setVisionStateSupplier(Supplier<VisionState> value) {
     visionStateSupplier = value;
+  }
+
+  /** Binds external game phase supplier. */
+  public void setGamePhaseSupplier(Supplier<PhaseInfo> value) {
+    phaseInfoSupplier = value;
   }
 
   /** Commands intent of the robot. */
@@ -176,7 +237,9 @@ public class RobotState {
    */
   public void enterPeriodic() {
     // synchronize all states to a common timestamp representing this update cycle
-    final var timestamp = RobotController.getFPGATime();
+    final var timestamp = RobotController.getTime();
+
+    batteryVoltage = RobotController.getMeasureBatteryVoltage();
 
     boolean isRobotStationary = false;
     boolean isRobotSlow = false;
@@ -236,6 +299,13 @@ public class RobotState {
             visionPose, Utils.fpgaToCurrentTime(visionPoseTimestamp / 1000000.0));
       }
     }
+
+    // sync game phase info
+    final var phaseInfo = phaseInfoSupplier.get();
+    phase = phaseInfo.phase();
+    phaseElapsedTime = Seconds.of(phaseInfo.elapsedTime());
+    phaseRemainingTime = Seconds.of(phaseInfo.remainingTime());
+    hubActive = phaseInfo.active();
   }
 
   /**

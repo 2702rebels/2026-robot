@@ -21,6 +21,7 @@ import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import frc.robot.lib.CANduit;
+import frc.robot.lib.Hack;
 import frc.robot.lib.MatchTime;
 import frc.robot.lib.PhoenixUtil;
 import frc.robot.lib.Tunable;
@@ -101,6 +102,9 @@ public class Robot extends TimedRobot {
         Epilogue.bind(this);
       }
     }
+
+    Hack.adjustLoopOverrun(this);
+    Hack.silenceWarnings();
   }
 
   @Override
@@ -117,29 +121,31 @@ public class Robot extends TimedRobot {
     // Threads.setCurrentThreadPriority(true, 99);
 
     if (Constants.Settings.statsEnabled) {
-      var before = RobotController.getFPGATime();
+      var before = RobotController.getTime();
       Tunable.periodic();
-      var after = RobotController.getFPGATime();
+      var after = RobotController.getTime();
       statsTunableTopic.set((after - before) / 1000.0);
 
       before = after;
       PhoenixUtil.refreshSignals();
-      after = RobotController.getFPGATime();
+      after = RobotController.getTime();
       statsSignalsTopic.set((after - before) / 1000.0);
 
       before = after;
       canduit.update();
+      robotContainer.periodic();
       robotState.enterPeriodic();
       CommandScheduler.getInstance().run();
       robotState.exitPeriodic();
-      after = RobotController.getFPGATime();
+      after = RobotController.getTime();
       statsSchedulerTopic.set((after - before) / 1000.0);
-      statsPeriodicTopic.set((RobotController.getFPGATime() - getLoopStartTime()) / 1000.0);
+      statsPeriodicTopic.set((RobotController.getTime() - getLoopStartTime()) / 1000.0);
       gcStatsCollector.update();
     } else {
       Tunable.periodic();
       PhoenixUtil.refreshSignals();
       canduit.update();
+      robotContainer.periodic();
       robotState.enterPeriodic();
       CommandScheduler.getInstance().run();
       robotState.exitPeriodic();

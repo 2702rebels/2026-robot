@@ -46,10 +46,10 @@ public final class Hopper extends SubsystemBase {
   private static final double kSpindexerStatorCurrentLimit = 30;
   private static final double kFeedStatorCurrentLimit = 40;
 
-  private static final double kSpindexerConversionFactor = (36 / 14) * (72 / 24);
-  private static final double kSpindexerTolerance = 5; // RPMs
-  private static final double kFeedConversionFactor = 2;
-  private static final double kFeedTolerance = 5; // RPMs
+  private static final double kSpindexerConversionFactor = (36.0 / 14.0) * (72.0 / 24.0);
+  private static final double kSpindexerTolerance = 5.0; // RPMs
+  private static final double kFeedConversionFactor = 2.0;
+  private static final double kFeedTolerance = 5.0; // RPMs
 
   public Hopper(CANBus canbus) {
     spindexerMotor =

@@ -47,7 +47,7 @@ public class AprilTagDetector {
   }
 
   private void packetReceived(VisionPacket packet) {
-    final var t = RobotController.getFPGATime();
+    final var t = RobotController.getTime();
 
     // ignore packets that are too far into the past or into the future
     // indicating time sync issues

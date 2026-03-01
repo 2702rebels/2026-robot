@@ -22,7 +22,7 @@ public final class Intake extends SubsystemBase {
   // USE THEM TO INITIALIZE TUNABLE VALUES AND CONTROLLERS
   private static final double __kRollerS = 0;
   private static final double __kRollerV = 0;
-  private static final double __kRollerP = 20;
+  private static final double __kRollerP = 5;
   private static final double __kRollerD = 0;
 
   private static final double __kDeployS = 0;
@@ -30,7 +30,7 @@ public final class Intake extends SubsystemBase {
   private static final double __kDeployP = 2;
   private static final double __kDeployD = 0;
 
-  private static final double __kRollerVelocity = 5000; // RPMs
+  private static final double __kRollerVelocity = 2500; // RPMs
   private static final double __kDeployPosition =
       0; // degrees (change to +90 appox. once properly stowed at the beginning)
 
@@ -56,10 +56,10 @@ public final class Intake extends SubsystemBase {
   private static final double kRollerStatorCurrentLimit = 30;
   private static final double kDeployStatorCurrentLimit = 30;
 
-  private static final double kRollerConversionFactor = 29 / 18;
+  private static final double kRollerConversionFactor = 36.0 / 18.0;
   private static final double kDeployConversionFactor = 61.1;
-  private static final double kRollerTolerance = 5; // RPMs
-  private static final double kDeployTolerance = 2; // degrees
+  private static final double kRollerTolerance = 5.0; // RPMs
+  private static final double kDeployTolerance = 2.0; // degrees
   private static final double kStowedPosition = 0; // degrees
 
   public Intake(CANBus canbus) {

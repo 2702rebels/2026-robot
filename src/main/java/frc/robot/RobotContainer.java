@@ -10,16 +10,20 @@ import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.units.measure.Time;
+import edu.wpi.first.wpilibj.Alert;
+import edu.wpi.first.wpilibj.Alert.AlertType;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.GenericHID.RumbleType;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
+import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
 import frc.robot.RobotState.Intent;
 import frc.robot.generated.TunerConstants;
 import frc.robot.lib.CANduit;
+import frc.robot.lib.GamePhaseTracker;
 import frc.robot.lib.Tunable;
 import frc.robot.subsystems.AprilTagDetector;
 import frc.robot.subsystems.CommandSwerveDrivetrain;
@@ -35,6 +39,7 @@ public class RobotContainer {
   private final RobotState state = RobotState.getInstance();
   private final CommandXboxController controllerDriver = new CommandXboxController(0);
   private final CommandSwerveDrivetrain drivetrain = TunerConstants.createDrivetrain();
+  private final GamePhaseTracker gamePhaseTracker = new GamePhaseTracker();
 
   private final LedResource led = new LedResource(Constants.PwmID.LED);
   private final LedFeedback ledFeedback = new LedFeedback(led, this::getDefaultLedFeedback);
@@ -56,7 +61,6 @@ public class RobotContainer {
   private final Shooter shooter = new Shooter(TunerConstants.kCANBus);
 
   private static final Trigger disabled = new Trigger(() -> false);
-  private static final Trigger isAutonomousMode = new Trigger(DriverStation::isAutonomousEnabled);
 
   // slows down max rotation speed for more precise movements
   private final Trigger preciseRotationActive = controllerDriver.leftStick();
@@ -67,11 +71,25 @@ public class RobotContainer {
   private final Trigger resetIntentButton = controllerDriver.x();
   private final Trigger enableButton = controllerDriver.a();
 
+  // alerts
+  private static final Time kMissingAutoWinAllianceAlertThreshold = Seconds.of(1);
+  private final Alert alertMissingAutoWinAlliance =
+      new Alert("AUTO WINNER NOT SET!", AlertType.kError);
+
+  private final Alert alertLowBattery =
+      new Alert(
+          "Battery voltage is low, turn off the robot and replace the battery!",
+          AlertType.kWarning);
+
+  private final Alert alertControllerDriverDisconnected =
+      new Alert("Driver controller disconnected (port 0).", AlertType.kWarning);
+
   public RobotContainer(CANduit canduit) {
     turret = new Turret(TunerConstants.kCANBus, canduit);
 
     state.bind(drivetrain);
     state.setVisionStateSupplier(aprilTagDetector::getState);
+    state.setGamePhaseSupplier(gamePhaseTracker::getPhase);
 
     // [!] order matters here: we want to poll driver input first, since in most cases
     // we set intent via instant command that updates the robot state in place;
@@ -134,6 +152,28 @@ public class RobotContainer {
 
   /** Use this method to configure trigger bindings. */
   private void configureTriggers() {
+    RobotModeTriggers.autonomous().onTrue(Commands.runOnce(gamePhaseTracker::startPeriod));
+    RobotModeTriggers.teleop().onTrue(Commands.runOnce(gamePhaseTracker::startPeriod));
+    RobotModeTriggers.disabled()
+        .onTrue(Commands.runOnce(gamePhaseTracker::startPeriod).ignoringDisable(true));
+
+    // alert for missing auto win alliance
+    RobotModeTriggers.teleop()
+        .and(gamePhaseTracker.missingAutoWinAlliance)
+        .and(
+            () ->
+                gamePhaseTracker.getPeriodElapsedTime().gte(kMissingAutoWinAllianceAlertThreshold))
+        .whileTrue(
+            Commands.startEnd(
+                () -> {
+                  state.missingAutoWinAlliance = true;
+                  alertMissingAutoWinAlliance.set(true);
+                },
+                () -> {
+                  state.missingAutoWinAlliance = false;
+                  alertMissingAutoWinAlliance.set(false);
+                }));
+
     // endgame alerts
     new Trigger(
             () ->
@@ -154,6 +194,15 @@ public class RobotContainer {
                 rumble(Milliseconds.of(200)),
                 Commands.waitTime(Milliseconds.of(100)),
                 rumble(Milliseconds.of(200))));
+  }
+
+  public void periodic() {
+    // alert for low battery in disabled state
+    alertLowBattery.set(DriverStation.isDisabled() && state.isLowBattery());
+
+    // alert for disconnected controllers
+    alertControllerDriverDisconnected.set(
+        !DriverStation.isJoystickConnected(controllerDriver.getHID().getPort()));
   }
 
   public Command getAutonomousCommand() {

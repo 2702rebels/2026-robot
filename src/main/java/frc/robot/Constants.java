@@ -43,7 +43,7 @@ public final class Constants {
 
   /** RoboRIO CAN identifiers */
   public static final class CanID {
-    public static final int CANDUIT = -1;
+    public static final int CANDUIT = 4;
   }
 
   /** CANivore identifiers */
@@ -61,9 +61,9 @@ public final class Constants {
 
   /** CANduit GPIO identifiers */
   public static final class CANduitID {
-    public static final int TURRET_ENCODER1 = 0;
-    public static final int TURRET_ENCODER2 = 1;
-    public static final int CLIMB_SENSOR = 2;
+    public static final int TURRET_ENCODER1 = 1;
+    public static final int TURRET_ENCODER2 = 2;
+    public static final int CLIMB_SENSOR = 3;
   }
 
   /** RoboRIO DIO identifiers */

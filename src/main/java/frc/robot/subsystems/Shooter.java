@@ -78,6 +78,7 @@ public final class Shooter extends SubsystemBase {
 
   private static final double kFlywheelVelocityMax = 5000;
   private static final double kFlywheelVelocityTolerance = 3; // RPMs
+  private static final double kFlywheelConversionFactor = 15.0 / 18.0;
 
   public Shooter(CANBus canbus) {
     flywheelMotorLeader =
@@ -157,7 +158,8 @@ public final class Shooter extends SubsystemBase {
       }
 
       flywheelMotorLeader.setControl(
-          flywheelControl.withVelocity(RotationsPerSecond.convertFrom(flywheelSetpoint, RPM)));
+          flywheelControl.withVelocity(
+              RotationsPerSecond.convertFrom(flywheelSetpoint, RPM) * kFlywheelConversionFactor));
 
       final var hoodSetpointActual = hoodParked ? Degrees.of(kHoodParkAngle.get()) : hoodSetpoint;
 
@@ -203,7 +205,7 @@ public final class Shooter extends SubsystemBase {
 
   @Logged(name = "Velocity", importance = Importance.INFO)
   public double getVelocity() {
-    return flywheelMotorLeader.getVelocityRPM();
+    return flywheelMotorLeader.getVelocityRPM() / kFlywheelConversionFactor;
   }
 
   /** Initializes the shooter by zeroing the hood. */

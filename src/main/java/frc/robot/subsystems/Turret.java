@@ -14,8 +14,10 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 import frc.robot.lib.CANduit;
 import frc.robot.lib.EasyCRT;
+import frc.robot.lib.EasyCRT.CRTStatus;
 import frc.robot.lib.EasyCRTConfig;
 import frc.robot.lib.LoggedTalonFX;
+import frc.robot.lib.Misc;
 import frc.robot.lib.Tunable;
 
 public final class Turret extends SubsystemBase {
@@ -49,6 +51,12 @@ public final class Turret extends SubsystemBase {
   @Logged(name = "Setpoint", importance = Importance.INFO)
   private Angle setpoint;
 
+  @Logged(name = "CrtAngle", importance = Importance.INFO)
+  private Angle crtAngle;
+
+  @Logged(name = "CrtStatus", importance = Importance.INFO)
+  private CRTStatus crtStatus = CRTStatus.NOT_ATTEMPTED;
+
   private final MotionMagicExpoTorqueCurrentFOC control;
 
   private final CANduit.PWMInput encoder1;
@@ -61,10 +69,15 @@ public final class Turret extends SubsystemBase {
   private boolean initialized;
 
   private static final double kStatorCurrentLimit = 30;
-  private static final double kConversionFactor = 1;
-  private static final double kMinPosition = 0; // degrees
-  private static final double kMaxPosition = 270; // degrees
+  private static final double kConversionFactor = 1.0;
+  private static final double kMinPosition = -200.0; // degrees
+  private static final double kMaxPosition = 200.0; // degrees
   private static final double kTolerance = 1;
+
+  private static final double kEncoder1Ratio = 218.0 / 17.0;
+  private static final double kEncoder2Ratio = 218.0 / 19.0;
+  private static final Angle kEncoder1Offset = Degrees.of(-128.9);
+  private static final Angle kEncoder2Offset = Degrees.of(-170.2);
 
   public Turret(CANBus canbus, CANduit canduit) {
     motor =
@@ -98,10 +111,15 @@ public final class Turret extends SubsystemBase {
     crt =
         new EasyCRT(
             new EasyCRTConfig(this::getEncoder1Angle, this::getEncoder2Angle)
-                .withEncoderRatios(1, 1));
+                .withEncoderRatios(kEncoder1Ratio, kEncoder2Ratio)
+                .withAbsoluteEncoderOffsets(kEncoder1Offset, kEncoder2Offset)
+                // .withMechanismRange(Degrees.of(kMinPosition), Degrees.of(kMaxPosition))
+                .withMatchTolerance(Degrees.of(2)));
 
+    initialized = false;
     disabled = true;
     setpoint = Degrees.zero();
+    crtAngle = Degrees.zero();
   }
 
   /**
@@ -120,7 +138,7 @@ public final class Turret extends SubsystemBase {
 
     final double v = encoder.getPulseWidth();
     final double p = Math.min(encoder.getPeriod(), 1025000); // nanoseconds
-    return Degrees.of(360.0 * v / p);
+    return Radians.of(Misc.clampAngle(2 * Math.PI * v / p));
   }
 
   @Logged(name = "Encoder1", importance = Importance.INFO)
@@ -135,15 +153,21 @@ public final class Turret extends SubsystemBase {
 
   @Override
   public void periodic() {
+    if (!initialized) {
+      // ensure both encoders are reporting valid readings
+      if (encoder1.hasValue() && encoder2.hasValue()) {
+        final var angle = crt.getAngleOptional();
+        crtStatus = crt.getLastStatus();
+        if (angle.isPresent()) {
+          crtAngle = angle.get();
+        }
+      }
+    }
+
     if (disabled) {
       motor.stopMotor();
     } else if (initialized) {
       motor.setControl(control.withPosition(setpoint.in(Rotations) * kConversionFactor));
-    } else {
-      // ensure both encoders are reporting valid readings
-      if (encoder1.hasValue() && encoder2.hasValue()) {
-        final var angle = crt.getAngleOptional();
-      }
     }
   }
 
