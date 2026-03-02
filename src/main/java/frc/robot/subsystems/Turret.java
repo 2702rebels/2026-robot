@@ -76,8 +76,11 @@ public final class Turret extends SubsystemBase {
 
   private static final double kEncoder1Ratio = 218.0 / 17.0;
   private static final double kEncoder2Ratio = 218.0 / 19.0;
-  private static final Angle kEncoder1Offset = Degrees.of(-128.9);
-  private static final Angle kEncoder2Offset = Degrees.of(-170.2);
+  // private static final Angle kEncoder1Offset = Degrees.of(-128.9);
+  // private static final Angle kEncoder2Offset = Degrees.of(-170.2);
+
+  private static final Angle kEncoder1Offset = Degrees.of(128.9);
+  private static final Angle kEncoder2Offset = Degrees.of(170.2);
 
   public Turret(CANBus canbus, CANduit canduit) {
     motor =
@@ -143,16 +146,51 @@ public final class Turret extends SubsystemBase {
 
   @Logged(name = "Encoder1", importance = Importance.INFO)
   public Angle getEncoder1Angle() {
-    return getEncoderAngle(encoder1);
+    // return (Degrees.of(21.18));
+    // return (Degrees.of(211.76));
+    // return (Degrees.of(148.24));
+
+    // return (Degrees.of(146.39).plus(kEncoder1Offset)); // Use with offset applied directly
+    // return (Degrees.of(146.39));
+    return (Degrees.of(262.86)); // In between spreadsheet rows
+    // return getEncoderAngle(encoder1);
   }
 
   @Logged(name = "Encoder2", importance = Importance.INFO)
   public Angle getEncoder2Angle() {
-    return getEncoderAngle(encoder2);
+    // return (Degrees.of(18.95));
+    // return (Degrees.of(189.47));
+    // return (Degrees.of(56.84));
+    // return (Degrees.of(0.33).plus(kEncoder2Offset)); // Use with offset applied directly
+    // return (Degrees.of(0.33));
+    // return (Degrees.of(104.54)); // In between
+    return (Degrees.of(103.0)); // In between with 1.5 deg error
+    // return getEncoderAngle(encoder2);
   }
 
   @Override
   public void periodic() {
+
+    // System.out.println("In turret periodic");
+    // Encoder 1 has 17 teeth
+    // Encoder 2 has 19 teeth
+
+    EasyCRT mycrt =
+        new EasyCRT(
+            new EasyCRTConfig(this::getEncoder1Angle, this::getEncoder2Angle)
+                .withEncoderRatios(kEncoder1Ratio, kEncoder2Ratio) // Encoder ratios should be 1:1?
+                .withAbsoluteEncoderOffsets(kEncoder1Offset, kEncoder2Offset)
+                .withMatchTolerance(Degrees.of(2))); // Match tolerance is value from 0 to 1?
+
+    final var myangle = mycrt.getAngleOptional();
+    crtStatus = mycrt.getLastStatus();
+    if (myangle.isPresent()) {
+      double degAngle = myangle.get().in(Degrees);
+      System.out.println("Angle: " + degAngle + ", Status: " + crtStatus);
+    } else {
+      System.out.println("Status: " + crtStatus);
+    }
+
     if (!initialized) {
       // ensure both encoders are reporting valid readings
       if (encoder1.hasValue() && encoder2.hasValue()) {
