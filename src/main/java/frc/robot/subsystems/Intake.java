@@ -14,6 +14,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 import frc.robot.lib.LoggedTalonFX;
+import frc.robot.lib.PhoenixUtil;
 import frc.robot.lib.Tunable;
 
 public final class Intake extends SubsystemBase {
@@ -53,14 +54,14 @@ public final class Intake extends SubsystemBase {
   private boolean deployed;
   private boolean stopped;
 
-  private static final double kRollerStatorCurrentLimit = 30;
-  private static final double kDeployStatorCurrentLimit = 30;
+  private static final double kRollerStatorCurrentLimit = 30.0;
+  private static final double kDeployStatorCurrentLimit = 30.0;
 
   private static final double kRollerConversionFactor = 36.0 / 18.0;
   private static final double kDeployConversionFactor = 61.1;
   private static final double kRollerTolerance = 5.0; // RPMs
   private static final double kDeployTolerance = 2.0; // degrees
-  private static final double kStowedPosition = 0; // degrees
+  private static final double kStowedPosition = 0.0; // degrees
 
   public Intake(CANBus canbus) {
     rollerMotor =
@@ -101,7 +102,7 @@ public final class Intake extends SubsystemBase {
     Tunable.bind("Deploy", deployMotor);
 
     // zero position based on the initial configuration
-    deployMotor.setPosition(0);
+    PhoenixUtil.run("Intake Deploy Zero", deployMotor.getDeviceID(), () -> deployMotor.setPosition(0));
 
     disabled = true;
     deploySetpoint = Degrees.of(kStowedPosition);

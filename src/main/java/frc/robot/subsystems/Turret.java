@@ -17,8 +17,9 @@ import frc.robot.lib.EasyCRT;
 import frc.robot.lib.EasyCRT.CRTStatus;
 import frc.robot.lib.EasyCRTConfig;
 import frc.robot.lib.LoggedTalonFX;
-import frc.robot.lib.Misc;
 import frc.robot.lib.Tunable;
+import java.util.Random;
+import java.util.function.Supplier;
 
 public final class Turret extends SubsystemBase {
   // MAKE SURE TO UPDATE THESE VALUES AFTER TUNING
@@ -68,16 +69,17 @@ public final class Turret extends SubsystemBase {
   // indicates that the subsystem has been initialized by determining the position of the turret
   private boolean initialized;
 
-  private static final double kStatorCurrentLimit = 30;
-  private static final double kConversionFactor = 1.0;
+  private static final double kTurretTeeth = 218.0;
+  private static final double kEncoder1Ratio = kTurretTeeth / 17.0;
+  private static final double kEncoder2Ratio = kTurretTeeth / 19.0;
+  private static final Angle kEncoder1Offset = Degrees.of(-231.1);
+  private static final Angle kEncoder2Offset = Degrees.of(-189.8);
+
+  private static final double kStatorCurrentLimit = 30.0;
+  private static final double kConversionFactor = kTurretTeeth / 22.0;
   private static final double kMinPosition = -200.0; // degrees
   private static final double kMaxPosition = 200.0; // degrees
-  private static final double kTolerance = 1;
-
-  private static final double kEncoder1Ratio = 218.0 / 17.0;
-  private static final double kEncoder2Ratio = 218.0 / 19.0;
-  private static final Angle kEncoder1Offset = Degrees.of(-128.9);
-  private static final Angle kEncoder2Offset = Degrees.of(-170.2);
+  private static final double kTolerance = 1.0; // degrees
 
   public Turret(CANBus canbus, CANduit canduit) {
     motor =
@@ -105,7 +107,6 @@ public final class Turret extends SubsystemBase {
     Tunable.bind("Turret", motor);
     Tunable.bindMotionProfile("Turret/Motion", motor);
 
-    // TODO: CRT configuration
     encoder1 = canduit.createPWMInput(Constants.CANduitID.TURRET_ENCODER1);
     encoder2 = canduit.createPWMInput(Constants.CANduitID.TURRET_ENCODER2);
     crt =
@@ -113,8 +114,8 @@ public final class Turret extends SubsystemBase {
             new EasyCRTConfig(this::getEncoder1Angle, this::getEncoder2Angle)
                 .withEncoderRatios(kEncoder1Ratio, kEncoder2Ratio)
                 .withAbsoluteEncoderOffsets(kEncoder1Offset, kEncoder2Offset)
-                // .withMechanismRange(Degrees.of(kMinPosition), Degrees.of(kMaxPosition))
-                .withMatchTolerance(Degrees.of(2)));
+                .withMechanismRange(Degrees.of(kMinPosition), Degrees.of(kMaxPosition))
+                .withMatchTolerance(Degrees.of(kTolerance)));
 
     initialized = false;
     disabled = true;
@@ -138,7 +139,7 @@ public final class Turret extends SubsystemBase {
 
     final double v = encoder.getPulseWidth();
     final double p = Math.min(encoder.getPeriod(), 1025000); // nanoseconds
-    return Radians.of(Misc.clampAngle(2 * Math.PI * v / p));
+    return Radians.of(MathUtil.inputModulus(2 * Math.PI * v / p, 0, 2 * Math.PI));
   }
 
   @Logged(name = "Encoder1", importance = Importance.INFO)
@@ -160,6 +161,12 @@ public final class Turret extends SubsystemBase {
         crtStatus = crt.getLastStatus();
         if (angle.isPresent()) {
           crtAngle = angle.get();
+
+          // reset turret motor position to the derived angle
+          // PhoenixUtil.run(
+          //     "Turret Position Init",
+          //     motor.getDeviceID(),
+          //     () -> motor.setPosition(crtAngle.in(Rotations) * kConversionFactor));
         }
       }
     }

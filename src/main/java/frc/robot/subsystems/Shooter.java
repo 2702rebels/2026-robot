@@ -68,16 +68,16 @@ public final class Shooter extends SubsystemBase {
   // manual mode used for testing
   private boolean manual;
 
-  private static final double kFlywheelStatorCurrentLimit = 60;
-  private static final double kHoodStatorCurrentLimit = 20;
+  private static final double kFlywheelStatorCurrentLimit = 60.0;
+  private static final double kHoodStatorCurrentLimit = 20.0;
 
-  private static final double kHoodPositionMin = 0; // degrees
-  private static final double KHoodPositionMax = 33; // degrees
+  private static final double kHoodPositionMin = 0.0; // degrees
+  private static final double KHoodPositionMax = 33.0; // degrees
   private static final double kHoodPositionTolerance = 0.5; // degrees
-  private static final double kHoodConversionFactor = 108;
+  private static final double kHoodConversionFactor = 108.0;
 
-  private static final double kFlywheelVelocityMax = 5000;
-  private static final double kFlywheelVelocityTolerance = 3; // RPMs
+  private static final double kFlywheelVelocityMax = 5000.0;
+  private static final double kFlywheelVelocityTolerance = 3.0; // RPMs
   private static final double kFlywheelConversionFactor = 15.0 / 18.0;
 
   public Shooter(CANBus canbus) {
@@ -169,7 +169,7 @@ public final class Shooter extends SubsystemBase {
   }
 
   private void reset() {
-    hoodMotor.setPosition(0);
+    PhoenixUtil.run("Shooter Hood Zero", hoodMotor.getDeviceID(), () -> hoodMotor.setPosition(0));
   }
 
   private void setAngle(Angle value) {
