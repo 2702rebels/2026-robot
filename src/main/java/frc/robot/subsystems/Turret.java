@@ -18,6 +18,8 @@ import frc.robot.lib.EasyCRT.CRTStatus;
 import frc.robot.lib.EasyCRTConfig;
 import frc.robot.lib.LoggedTalonFX;
 import frc.robot.lib.Tunable;
+import java.util.Random;
+import java.util.function.Supplier;
 
 public final class Turret extends SubsystemBase {
   // MAKE SURE TO UPDATE THESE VALUES AFTER TUNING
@@ -52,8 +54,6 @@ public final class Turret extends SubsystemBase {
 
   @Logged(name = "CrtAngle", importance = Importance.INFO)
   private Angle crtAngle;
-
-  private Angle turretAngle;
 
   @Logged(name = "CrtStatus", importance = Importance.INFO)
   private CRTStatus crtStatus = CRTStatus.NOT_ATTEMPTED;
@@ -142,29 +142,6 @@ public final class Turret extends SubsystemBase {
     return Radians.of(MathUtil.inputModulus(2 * Math.PI * v / p, 0, 2 * Math.PI));
   }
 
-  private static Angle mod(Angle x) {
-    return Rotations.of(MathUtil.inputModulus(x.in(Rotations), 0, 1));
-  }
-
-  private static Angle getTurretRotation(Angle encoder1, Angle encoder2) {
-    // When x is the turret rotation, encoder1 is 218x/17 and encoder2 is 218x/19
-    // Difference between encoders = 218x/17 - 218x/19 = 436x/323
-    // Therefore, turret rotation can be derived from encoder difference as x = 323 * (encoder1 - encoder2) / 436
-    Angle baseRotation = mod(encoder1.minus(encoder2)).times(323.0 / 436.0);
-    // Predict encoder1 reading based off of derived turret rotation
-    Angle encoder1Prediction = mod(baseRotation.times(218.0 / 17.0));
-    // Encoder difference wraps every 323/436 rotations of the turret
-    // Prediction will match if encoder difference has not yet wrapped;
-    // If prediction is close enough to actual encoder1 reading, we are likely in the first wrap; otherwise, we are likely in the second wrap and need to add one wrap to the base rotation
-    if (encoder1Prediction.minus(encoder1).abs(Rotations) > 0.25) {
-        return baseRotation.plus(Rotations.of(323.0 / 436.0));
-    }
-    return baseRotation;
-
-    // If difference between prediction and real is not near 0 or 0.5 something has gone wrong
-    // We could handle this but it would indicate a hardware failure so whatevs
-  }
-
   @Logged(name = "Encoder1", importance = Importance.INFO)
   public Angle getEncoder1Angle() {
     return getEncoderAngle(encoder1);
@@ -180,19 +157,17 @@ public final class Turret extends SubsystemBase {
     if (!initialized) {
       // ensure both encoders are reporting valid readings
       if (encoder1.hasValue() && encoder2.hasValue()) {
-        // final var angle = crt.getAngleOptional();
-        // crtStatus = crt.getLastStatus();
-        // if (angle.isPresent()) {
-        //   crtAngle = angle.get();
+        final var angle = crt.getAngleOptional();
+        crtStatus = crt.getLastStatus();
+        if (angle.isPresent()) {
+          crtAngle = angle.get();
 
-        //   // reset turret motor position to the derived angle
-        //   // PhoenixUtil.run(
-        //   //     "Turret Position Init",
-        //   //     motor.getDeviceID(),
-        //   //     () -> motor.setPosition(crtAngle.in(Rotations) * kConversionFactor));
-        // }
-
-        turretAngle = getTurretRotation(getEncoder1Angle(), getEncoder2Angle());
+          // reset turret motor position to the derived angle
+          // PhoenixUtil.run(
+          //     "Turret Position Init",
+          //     motor.getDeviceID(),
+          //     () -> motor.setPosition(crtAngle.in(Rotations) * kConversionFactor));
+        }
       }
     }
 
