@@ -142,6 +142,7 @@ public class RobotContainer {
     controllerDriver.rightTrigger().onTrue(hopper.enable().andThen(shooter.enable()));
     // enableButton.onTrue(hopper.enable().andThen(shooter.enable()));
     // enableButton.onTrue(shooter.enable());
+    // enableButton.onTrue(turret.enable());
     enableButton.onTrue(intake.enable());
 
     resetIntentButton.onTrue(hopper.disable().andThen(shooter.disable()).andThen(intake.disable()));

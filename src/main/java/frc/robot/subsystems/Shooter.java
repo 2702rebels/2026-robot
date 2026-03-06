@@ -53,7 +53,7 @@ public final class Shooter extends SubsystemBase {
   private double flywheelSetpoint;
 
   @Logged(name = "Setpoint/Hood", importance = Importance.INFO)
-  private Angle hoodSetpoint;
+  private Angle hoodSetpoint = Degrees.zero();
 
   private final Follower followerControl;
   private final VelocityTorqueCurrentFOC flywheelControl;
@@ -140,7 +140,6 @@ public final class Shooter extends SubsystemBase {
     reset();
 
     disabled = true;
-    hoodSetpoint = Degrees.zero();
     flywheelSetpoint = 0;
 
     manual = true; // FOR TESTING ONLY
