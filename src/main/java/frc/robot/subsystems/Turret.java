@@ -22,6 +22,7 @@ import frc.robot.lib.EasyCRTConfig;
 import frc.robot.lib.LoggedTalonFX;
 import frc.robot.lib.PhoenixUtil;
 import frc.robot.lib.Tunable;
+import java.util.Optional;
 
 public final class Turret extends SubsystemBase {
   // MAKE SURE TO UPDATE THESE VALUES AFTER TUNING
@@ -164,6 +165,51 @@ public final class Turret extends SubsystemBase {
     final double v = encoder.getPulseWidth();
     final double p = Math.min(encoder.getPeriod(), 1025000); // nanoseconds
     return MathUtil.inputModulus(v / p, 0, 1);
+  }
+
+  private static final double kEncoderRatioDiff = 1.0 / (kEncoder1Ratio - kEncoder2Ratio);
+
+  private static Optional<Angle> getEstimatedTurretAngle(Angle encoder1, Angle encoder2) {
+    // let n be the turret rotation, then encoder1 is (218/17)n and encoder2 is (218/19)n
+    // difference between encoders = (218/17 - 218/19)n = (436/323)n
+    // therefore, turret rotation can be derived from encoder difference as
+    // n = 323 * (encoder1 - encoder2) / 436
+
+    // adjust encoders by their respective offsets and convert to rotations
+    final var encoder1rot =
+        MathUtil.inputModulus(encoder1.plus(kEncoder1Offset).in(Rotations), 0, 1);
+    final var encoder2rot =
+        MathUtil.inputModulus(encoder2.plus(kEncoder2Offset).in(Rotations), 0, 1);
+
+    final var encoderDiff = MathUtil.inputModulus(encoder1rot - encoder2rot, 0, 1);
+    final var n = kEncoderRatioDiff * encoderDiff;
+
+    // predict encoder1 reading from the derived turret rotation
+    final var encoder1expected = MathUtil.inputModulus(n * kEncoder1Ratio, 0, 1);
+
+    // encoder difference wraps every 323/436 rotations of the turret,
+    // prediction will match if encoder difference has not yet wrapped;
+    //
+    // delta between prediction and actual encoder1 reading should be
+    // either 0 or 0.5; the former indicates we are within the first wrap,
+    // the latter indicates we must offset by one wrap
+    //
+    // here we assume that we are always within +/- wrap of the "zero" position
+    // and subtract one wrap worth of rotation, since we treat CW and CCW as
+    // opposite signs
+    //
+    // otherwise ignore the reading since it is likely garbage
+    final var delta = Math.abs(encoder1expected - encoder1rot);
+
+    if (delta < 0.015) {
+      return Optional.of(Rotations.of(n));
+    }
+
+    if (Math.abs(delta - 0.5) < 0.015) {
+      return Optional.of(Rotations.of(n - kEncoderRatioDiff));
+    }
+
+    return Optional.empty();
   }
 
   /** Logic to estimate turret angle using a history of CRT readings. */
