@@ -9,6 +9,7 @@ import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.units.measure.Angle;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
@@ -18,8 +19,6 @@ import frc.robot.lib.EasyCRT.CRTStatus;
 import frc.robot.lib.EasyCRTConfig;
 import frc.robot.lib.LoggedTalonFX;
 import frc.robot.lib.Tunable;
-import java.util.Random;
-import java.util.function.Supplier;
 
 public final class Turret extends SubsystemBase {
   // MAKE SURE TO UPDATE THESE VALUES AFTER TUNING
@@ -74,8 +73,8 @@ public final class Turret extends SubsystemBase {
   private static final double kTurretTeeth = 218.0;
   private static final double kEncoder1Ratio = kTurretTeeth / 17.0;
   private static final double kEncoder2Ratio = kTurretTeeth / 19.0;
-  private static final Angle kEncoder1Offset = Degrees.of(-231.1);
-  private static final Angle kEncoder2Offset = Degrees.of(-189.8);
+  private static final Angle kEncoder1Offset = Degrees.of(291.39666601294374);
+  private static final Angle kEncoder2Offset = Degrees.of(186.03676383105295);
 
   private static final double kStatorCurrentLimit = 30.0;
   private static final double kConversionFactor = kTurretTeeth / 22.0;
@@ -141,6 +140,7 @@ public final class Turret extends SubsystemBase {
 
     final double v = encoder.getPulseWidth();
     final double p = Math.min(encoder.getPeriod(), 1025000); // nanoseconds
+    SmartDashboard.putNumber(encoder.toString() + " Period", p);
     return Radians.of(MathUtil.inputModulus(2 * Math.PI * v / p, 0, 2 * Math.PI));
   }
 
@@ -149,22 +149,27 @@ public final class Turret extends SubsystemBase {
   }
 
   private static Angle getTurretRotation(Angle encoder1, Angle encoder2) {
+    encoder1 = mod(encoder1);
+    encoder2 = mod(encoder2);
     // When x is the turret rotation, encoder1 is 218x/17 and encoder2 is 218x/19
     // Difference between encoders = 218x/17 - 218x/19 = 436x/323
-    // Therefore, turret rotation can be derived from encoder difference as x = 323 * (encoder1 - encoder2) / 436
+    // Therefore, turret rotation can be derived from encoder difference as x = 323 * (encoder1 -
+    // encoder2) / 436
+    SmartDashboard.putNumber("Encoder Difference", mod(encoder1.minus(encoder2)).in(Degrees));
     Angle baseRotation = mod(encoder1.minus(encoder2)).times(323.0 / 436.0);
     // Predict encoder1 reading based off of derived turret rotation
     Angle encoder1Prediction = mod(baseRotation.times(218.0 / 17.0));
     // Encoder difference wraps every 323/436 rotations of the turret
     // Prediction will match if encoder difference has not yet wrapped;
-    // If prediction is close enough to actual encoder1 reading, we are likely in the first wrap; otherwise, we are likely in the second wrap and need to add one wrap to the base rotation
-    if (encoder1Prediction.minus(encoder1).abs(Rotations) > 0.25) {
-        return baseRotation.plus(Rotations.of(323.0 / 436.0));
+    // If prediction is close enough to actual encoder1 reading, we are likely in the first wrap;
+    // otherwise, we are likely in the second wrap and need to add one wrap to the base rotation
+    if (Math.abs(encoder1Prediction.minus(encoder1).abs(Rotations) - 0.5) < 0.15) {
+      return baseRotation.plus(Rotations.of(323.0 / 436.0));
+    } else if (encoder1Prediction.minus(encoder1).abs(Rotations) < 0.15) {
+      return baseRotation;
+    } else {
+      return Rotations.zero();
     }
-    return baseRotation;
-
-    // If difference between prediction and real is not near 0 or 0.5 something has gone wrong
-    // We could handle this but it would indicate a hardware failure so whatevs
   }
 
   @Logged(name = "Encoder1", importance = Importance.INFO)
@@ -174,7 +179,7 @@ public final class Turret extends SubsystemBase {
 
   @Logged(name = "Encoder2", importance = Importance.INFO)
   public Angle getEncoder2Angle() {
-    return getEncoderAngle(encoder2);
+    return Rotation.one().minus(getEncoderAngle(encoder2));
   }
 
   @Override
@@ -194,7 +199,20 @@ public final class Turret extends SubsystemBase {
         //   //     () -> motor.setPosition(crtAngle.in(Rotations) * kConversionFactor));
         // }
 
-        turretAngle = getTurretRotation(getEncoder1Angle(), getEncoder2Angle());
+        turretAngle =
+            getTurretRotation(
+                getEncoder1Angle().minus(kEncoder1Offset).plus(Rotations.of(0.5)),
+                getEncoder2Angle().minus(kEncoder2Offset).plus(Rotations.of(0.5)));
+
+        SmartDashboard.putNumber("Encoder1 Raw Angle", getEncoder1Angle().in(Degrees));
+        SmartDashboard.putNumber("Encoder2 Raw Angle", getEncoder2Angle().in(Degrees));
+        SmartDashboard.putNumber(
+            "Encoder1 Angle",
+            getEncoder1Angle().minus(kEncoder1Offset).plus(Rotations.of(0.5)).in(Degrees));
+        SmartDashboard.putNumber(
+            "Encoder2 Angle",
+            getEncoder2Angle().minus(kEncoder2Offset).plus(Rotations.of(0.5)).in(Degrees));
+        SmartDashboard.putNumber("Turret Angle", turretAngle.in(Degrees));
       }
     }
 

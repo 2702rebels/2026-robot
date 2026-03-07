@@ -51,6 +51,10 @@ public class CANduit {
     public void close() {
       canduit.releaseGPIO(gpio);
     }
+
+    public String toString() {
+      return "GPIO " + gpio;
+    }
   }
 
   private abstract class DigitalIO extends Channel {
@@ -110,6 +114,9 @@ public class CANduit {
         final var bb = ByteBuffer.wrap(data.data).order(ByteOrder.LITTLE_ENDIAN);
         width = bb.getInt();
         period = bb.getInt();
+        // In new fw, width & period are 28bit values
+        // width &= 0xFFFFFFF;
+        // period &= 0xFFFFFFF;
         timestamp = data.timestamp;
       }
     }
