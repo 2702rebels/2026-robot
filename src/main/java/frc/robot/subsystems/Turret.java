@@ -161,7 +161,8 @@ public final class Turret extends SubsystemBase {
     Angle e1c = mod(rotation.times(kEncoder1Ratio));
     Angle e2c = mod(rotation.times(kEncoder2Ratio));
 
-    final Angle halfRotation = Angle.ofBaseUnits(0.5, Rotations);
+    // final Angle halfRotation = Angle.ofBaseUnits(0.5, Rotations);
+    final Angle halfRotation = Rotations.of(0.5); // Make global XXX
     Angle err1 = mod(e1c.minus(encoder1).plus(halfRotation)).minus(halfRotation);
     Angle err2 = mod(e2c.minus(encoder2).plus(halfRotation)).minus(halfRotation);
 
@@ -180,33 +181,42 @@ public final class Turret extends SubsystemBase {
     Pair<Angle, Double> calcRotation1 = CalculateAngleAndError(encoder1, encoder2);
     SmartDashboard.putNumber("calcRot1", calcRotation1.getFirst().in(Rotations));
     SmartDashboard.putNumber("error1", calcRotation1.getSecond());
-    final Angle halfRotation = Angle.ofBaseUnits(0.5, Rotations);
+    // inal Angle halfRotation = Angle.ofBaseUnits(0.5, Rotations);
+    final Angle halfRotation = Rotations.of(0.5);
 
     Pair<Angle, Double> calcRotation2 =
         CalculateAngleAndError(mod(encoder1.plus(halfRotation)), mod(encoder2.plus(halfRotation)));
     SmartDashboard.putNumber("calcRot2_before_adding", calcRotation2.getFirst().in(Rotations));
 
-    Angle a = calcRotation2.getFirst();
-    SmartDashboard.putNumber("calcRot2_a", a.in(Rotations));
-    a = a.plus(Angle.ofBaseUnits(0.74, Rotations));
-    SmartDashboard.putNumber("calcRot2_alt", a.in(Rotations));
+    // Angle a = calcRotation2.getFirst();
+    // SmartDashboard.putNumber("calcRot2_a", a.in(Rotations));
+    // a = a.plus(Angle.ofBaseUnits(0.74, Rotations));
+    // a = a.plus(Rotations.of(0.74));
+    // SmartDashboard.putNumber("calcRot2_alt", a.in(Rotations));
 
     calcRotation2 =
         new Pair<>(
-            // calcRotation2.getFirst().plus(Angle.ofBaseUnits(kScale, Rotations)),
-            calcRotation2.getFirst().plus(Angle.ofBaseUnits(0.74, Rotations)),
+            calcRotation2.getFirst().plus(Rotations.of(kScale)),
+            // calcRotation2.getFirst().plus(Angle.ofBaseUnits(0.74, Rotations)),
             calcRotation2.getSecond());
     SmartDashboard.putNumber("calcRot2", calcRotation2.getFirst().in(Rotations));
     SmartDashboard.putNumber("error2", calcRotation2.getSecond());
-    double minError = Math.min(calcRotation1.getSecond(), calcRotation2.getSecond());
-    if (minError > kAcceptableError) {
-      return lastUsedEncoder == 1 ? calcRotation1.getFirst() : calcRotation2.getFirst();
-    }
+    // double minError = Math.min(calcRotation1.getSecond(), calcRotation2.getSecond());
+    // if (minError > kAcceptableError) {
+    //  return lastUsedEncoder == 1 ? calcRotation1.getFirst() : calcRotation2.getFirst();
+    // }
+    // if (calcRotation1.getSecond() < calcRotation2.getSecond()) {
+    //  lastUsedEncoder = 1;
+    //  return calcRotation1.getFirst();
+    // } else {
+    //  lastUsedEncoder = 2;
+    //  return calcRotation2.getFirst();
+    // }
     if (calcRotation1.getSecond() < calcRotation2.getSecond()) {
-      lastUsedEncoder = 1;
+      SmartDashboard.putNumber("min_err", calcRotation1.getSecond());
       return calcRotation1.getFirst();
     } else {
-      lastUsedEncoder = 2;
+      SmartDashboard.putNumber("min_err", calcRotation2.getSecond());
       return calcRotation2.getFirst();
     }
   }
@@ -219,7 +229,8 @@ public final class Turret extends SubsystemBase {
   @Logged(name = "Encoder2", importance = Importance.INFO)
   public Angle getEncoder2Angle() {
     // XXX invert rotation for test bench
-    return Rotation.one().minus(getEncoderAngle(encoder2));
+    // return Rotation.one().minus(getEncoderAngle(encoder2));
+    return getEncoderAngle(encoder2);
   }
 
   @Override
