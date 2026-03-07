@@ -8,6 +8,7 @@ import com.ctre.phoenix6.signals.NeutralModeValue;
 import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.math.Pair;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -81,6 +82,10 @@ public final class Turret extends SubsystemBase {
   private static final double kMinPosition = -200.0; // degrees
   private static final double kMaxPosition = 200.0; // degrees
   private static final double kTolerance = 1.0; // degrees
+  private static final double kScale = 323.0 / ((19 - 17) * kTurretTeeth);
+  private static final double kAcceptableError = 0.3;
+
+  private int lastUsedEncoder = 1;
 
   public Turret(CANBus canbus, CANduit canduit) {
     motor =
@@ -138,9 +143,12 @@ public final class Turret extends SubsystemBase {
     //
     // below formula seems to handle both situations reasonably well
 
-    final double v = encoder.getPulseWidth();
-    final double p = Math.min(encoder.getPeriod(), 1025000); // nanoseconds
+    // Subtract min pulse width from period and pulse width to get zero to 360 less a step
+    final double v = Math.max(encoder.getPulseWidth() - 1000, 0); // Subtract min pulse width 1usec
+    // final double p = Math.min(encoder.getPeriod(), 1025000); // nanoseconds
+    final double p = encoder.getPeriod() - 1000; // nanoseconds
     SmartDashboard.putNumber(encoder.toString() + " Period", p);
+    // Scale the values to get 0 to 360 degrees
     return Radians.of(MathUtil.inputModulus(2 * Math.PI * v / p, 0, 2 * Math.PI));
   }
 
@@ -148,27 +156,58 @@ public final class Turret extends SubsystemBase {
     return Rotations.of(MathUtil.inputModulus(x.in(Rotations), 0, 1));
   }
 
-  private static Angle getTurretRotation(Angle encoder1, Angle encoder2) {
+  private static Pair<Angle, Double> CalculateAngleAndError(Angle encoder1, Angle encoder2) {
+    Angle rotation = mod(encoder1.minus(encoder2)).times(kScale);
+    Angle e1c = mod(rotation.times(kEncoder1Ratio));
+    Angle e2c = mod(rotation.times(kEncoder2Ratio));
+
+    final Angle halfRotation = Angle.ofBaseUnits(0.5, Rotations);
+    Angle err1 = mod(e1c.minus(encoder1).plus(halfRotation)).minus(halfRotation);
+    Angle err2 = mod(e2c.minus(encoder2).plus(halfRotation)).minus(halfRotation);
+
+    return Pair.of(
+        rotation, Math.sqrt(Math.pow(err1.magnitude(), 2) + Math.pow(err2.magnitude(), 2)));
+  }
+
+  private Angle getTurretRotation(Angle encoder1, Angle encoder2) {
     encoder1 = mod(encoder1);
     encoder2 = mod(encoder2);
     // When x is the turret rotation, encoder1 is 218x/17 and encoder2 is 218x/19
     // Difference between encoders = 218x/17 - 218x/19 = 436x/323
     // Therefore, turret rotation can be derived from encoder difference as x = 323 * (encoder1 -
     // encoder2) / 436
-    SmartDashboard.putNumber("Encoder Difference", mod(encoder1.minus(encoder2)).in(Degrees));
-    Angle baseRotation = mod(encoder1.minus(encoder2)).times(323.0 / 436.0);
-    // Predict encoder1 reading based off of derived turret rotation
-    Angle encoder1Prediction = mod(baseRotation.times(218.0 / 17.0));
-    // Encoder difference wraps every 323/436 rotations of the turret
-    // Prediction will match if encoder difference has not yet wrapped;
-    // If prediction is close enough to actual encoder1 reading, we are likely in the first wrap;
-    // otherwise, we are likely in the second wrap and need to add one wrap to the base rotation
-    if (Math.abs(encoder1Prediction.minus(encoder1).abs(Rotations) - 0.5) < 0.15) {
-      return baseRotation.plus(Rotations.of(323.0 / 436.0));
-    } else if (encoder1Prediction.minus(encoder1).abs(Rotations) < 0.15) {
-      return baseRotation;
+    SmartDashboard.putNumber("Encoder Difference", mod(encoder1.minus(encoder2)).in(Rotations));
+    Pair<Angle, Double> calcRotation1 = CalculateAngleAndError(encoder1, encoder2);
+    SmartDashboard.putNumber("calcRot1", calcRotation1.getFirst().in(Rotations));
+    SmartDashboard.putNumber("error1", calcRotation1.getSecond());
+    final Angle halfRotation = Angle.ofBaseUnits(0.5, Rotations);
+
+    Pair<Angle, Double> calcRotation2 =
+        CalculateAngleAndError(mod(encoder1.plus(halfRotation)), mod(encoder2.plus(halfRotation)));
+    SmartDashboard.putNumber("calcRot2_before_adding", calcRotation2.getFirst().in(Rotations));
+
+    Angle a = calcRotation2.getFirst();
+    SmartDashboard.putNumber("calcRot2_a", a.in(Rotations));
+    a = a.plus(Angle.ofBaseUnits(0.74, Rotations));
+    SmartDashboard.putNumber("calcRot2_alt", a.in(Rotations));
+
+    calcRotation2 =
+        new Pair<>(
+            // calcRotation2.getFirst().plus(Angle.ofBaseUnits(kScale, Rotations)),
+            calcRotation2.getFirst().plus(Angle.ofBaseUnits(0.74, Rotations)),
+            calcRotation2.getSecond());
+    SmartDashboard.putNumber("calcRot2", calcRotation2.getFirst().in(Rotations));
+    SmartDashboard.putNumber("error2", calcRotation2.getSecond());
+    double minError = Math.min(calcRotation1.getSecond(), calcRotation2.getSecond());
+    if (minError > kAcceptableError) {
+      return lastUsedEncoder == 1 ? calcRotation1.getFirst() : calcRotation2.getFirst();
+    }
+    if (calcRotation1.getSecond() < calcRotation2.getSecond()) {
+      lastUsedEncoder = 1;
+      return calcRotation1.getFirst();
     } else {
-      return Rotations.zero();
+      lastUsedEncoder = 2;
+      return calcRotation2.getFirst();
     }
   }
 
@@ -179,6 +218,7 @@ public final class Turret extends SubsystemBase {
 
   @Logged(name = "Encoder2", importance = Importance.INFO)
   public Angle getEncoder2Angle() {
+    // XXX invert rotation for test bench
     return Rotation.one().minus(getEncoderAngle(encoder2));
   }
 
@@ -201,8 +241,8 @@ public final class Turret extends SubsystemBase {
 
         turretAngle =
             getTurretRotation(
-                getEncoder1Angle().minus(kEncoder1Offset).plus(Rotations.of(0.5)),
-                getEncoder2Angle().minus(kEncoder2Offset).plus(Rotations.of(0.5)));
+                mod(getEncoder1Angle().minus(kEncoder1Offset).plus(Rotations.of(0.5))),
+                mod(getEncoder2Angle().minus(kEncoder2Offset).plus(Rotations.of(0.5))));
 
         SmartDashboard.putNumber("Encoder1 Raw Angle", getEncoder1Angle().in(Degrees));
         SmartDashboard.putNumber("Encoder2 Raw Angle", getEncoder2Angle().in(Degrees));

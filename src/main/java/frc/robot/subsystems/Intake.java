@@ -102,7 +102,8 @@ public final class Intake extends SubsystemBase {
     Tunable.bind("Deploy", deployMotor);
 
     // zero position based on the initial configuration
-    PhoenixUtil.run("Intake Deploy Zero", deployMotor.getDeviceID(), () -> deployMotor.setPosition(0));
+    PhoenixUtil.run(
+        "Intake Deploy Zero", deployMotor.getDeviceID(), () -> deployMotor.setPosition(0));
 
     disabled = true;
     deploySetpoint = Degrees.of(kStowedPosition);
