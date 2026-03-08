@@ -148,6 +148,8 @@ public final class Turret extends SubsystemBase {
     // final double p = Math.min(encoder.getPeriod(), 1025000); // nanoseconds
     final double p = encoder.getPeriod() - 1000; // nanoseconds
     SmartDashboard.putNumber(encoder.toString() + " Period", p);
+    final int g = encoder.getGenCount();
+    SmartDashboard.putNumber(encoder.toString() + " GenCount", g);
     // Scale the values to get 0 to 360 degrees
     return Radians.of(MathUtil.inputModulus(2 * Math.PI * v / p, 0, 2 * Math.PI));
   }
@@ -166,6 +168,7 @@ public final class Turret extends SubsystemBase {
     Angle err1 = mod(e1c.minus(encoder1).plus(halfRotation)).minus(halfRotation);
     Angle err2 = mod(e2c.minus(encoder2).plus(halfRotation)).minus(halfRotation);
 
+    // Return the magnitude of error by taking sqrt of sum of squares
     return Pair.of(
         rotation, Math.sqrt(Math.pow(err1.magnitude(), 2) + Math.pow(err2.magnitude(), 2)));
   }

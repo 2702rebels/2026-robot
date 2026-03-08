@@ -103,6 +103,7 @@ public class CANduit {
   public class PWMInput extends Channel {
     protected int period = -1;
     protected int width = -1;
+    protected int gen_count = -1;
 
     private PWMInput(CANduit canduit, int gpio) {
       super(canduit, gpio, MODE_PWM_IN);
@@ -115,8 +116,11 @@ public class CANduit {
         width = bb.getInt();
         period = bb.getInt();
         // In new fw, width & period are 28bit values
-        // width &= 0xFFFFFFF;
-        // period &= 0xFFFFFFF;
+        int lower = (width & 0xF0000000) >> 28;
+        int upper = (period & 0xF0000000) >> 28;
+        gen_count = lower | upper << 4;
+        width &= 0xFFFFFFF;
+        period &= 0xFFFFFFF;
         timestamp = data.timestamp;
       }
     }
@@ -136,6 +140,11 @@ public class CANduit {
      */
     public int getPulseWidth() {
       return width;
+    }
+
+    /** Returns most recent generation count */
+    public int getGenCount() {
+      return gen_count;
     }
 
     /** Determines whether valid reading is present. */
