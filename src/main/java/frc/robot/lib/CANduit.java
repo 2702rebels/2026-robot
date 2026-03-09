@@ -2,10 +2,12 @@ package frc.robot.lib;
 
 import edu.wpi.first.hal.CANData;
 import edu.wpi.first.wpilibj.CAN;
+import edu.wpi.first.wpilibj.Timer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * The main class for the CANduit library. This class manages the CAN communication and GPIO pin
@@ -21,26 +23,50 @@ public class CANduit {
   private static final int CLASS_BCAST_STATUS = 20;
   private static final int CLASS_BCAST_PWM_VALUE = 21;
 
-  private static final int MODE_NONE = 0;
-  private static final int MODE_DIO_IN = 1;
-  private static final int MODE_DIO_OUT = 2;
-  private static final int MODE_PWM_IN = 3;
+  private static final byte MODE_NONE = 0;
+  private static final byte MODE_DIO_IN = 1;
+  private static final byte MODE_DIO_OUT = 2;
+  private static final byte MODE_PWM_IN = 3;
 
   private abstract class Channel implements AutoCloseable {
     protected final CANduit canduit;
     protected final int gpio;
+    protected final byte mode;
     protected long timestamp;
     protected final CANData data = new CANData();
 
-    protected Channel(CANduit canduit, int gpio, int mode) {
+    private boolean configured = false;
+
+    protected Channel(CANduit canduit, int gpio, byte mode) {
       this.canduit = canduit;
       this.gpio = gpio;
+      this.mode = mode;
       canduit.acquireGPIO(gpio, this);
       canduit.configureGPIO(gpio, mode);
     }
 
     /** Updates the input. Must be invoked in the robot periodic. */
     protected abstract void update();
+
+    /**
+     * Attempts to configure the channel according to its GPIO and mode if it has not been
+     * configured yet. Use {@link #isConfigured()} to test the configuration state.
+     *
+     * @return true if the channel has been configured successfully.
+     */
+    public boolean configure() {
+      if (!configured) {
+        canduit.configureGPIO(gpio, mode);
+
+        // 10 ms timeout
+        final var configuredMode = canduit.readConfiguredMode(gpio, 0.01);
+        if (configuredMode.isPresent()) {
+          configured = configuredMode.get() == mode;
+        }
+      }
+
+      return configured;
+    }
 
     /** Returns timestamp of the most recent value. */
     public long getTimestamp() {
@@ -51,6 +77,11 @@ public class CANduit {
     public void close() {
       canduit.releaseGPIO(gpio);
     }
+
+    /** Returns an indicator that the channel has been successfully configured. */
+    public boolean isConfigured() {
+      return configured;
+    }
   }
 
   private abstract class DigitalIO extends Channel {
@@ -59,7 +90,7 @@ public class CANduit {
 
     protected boolean value;
 
-    private DigitalIO(CANduit canduit, int gpio, int mode) {
+    private DigitalIO(CANduit canduit, int gpio, byte mode) {
       super(canduit, gpio, mode);
     }
 
@@ -195,12 +226,10 @@ public class CANduit {
   }
 
   /** Configures GPIO mode. */
-  private void configureGPIO(int gpio, int mode) {
+  private void configureGPIO(int gpio, byte mode) {
     if (!connected) return;
-    int apiIndex = gpio;
-    int apiId = CLASS_SET_MODE << 4 | apiIndex;
-    byte[] data = {(byte) mode};
-    can.writePacket(data, apiId);
+    final byte[] data = {mode};
+    writeData(gpio, CLASS_SET_MODE, data);
   }
 
   /** Reads low-level data from the CAN. Returns latest packet. */
@@ -213,5 +242,28 @@ public class CANduit {
   private void writeData(int gpio, int apiClass, byte[] data) {
     if (!connected) return;
     can.writePacket(data, apiClass << 4 | gpio);
+  }
+
+  /** Requests configured GPIO mode. This is a blocking call. */
+  private Optional<Byte> readConfiguredMode(int gpio, double timeoutSeconds) {
+    if (!connected) return Optional.empty();
+
+    final var apiId = CLASS_SET_MODE << 4 | gpio;
+    can.writeRTRFrame(1, apiId);
+    final var timer = new Timer();
+    timer.start();
+
+    final var data = new CANData();
+
+    // blocking poll until timeout
+    while (timer.get() < timeoutSeconds) {
+      if (can.readPacketNew(apiId, data)) {
+        return Optional.of(data.data[0]);
+      }
+
+      Timer.delay(0.001); // 1ms
+    }
+
+    return Optional.empty();
   }
 }

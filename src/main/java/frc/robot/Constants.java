@@ -55,14 +55,14 @@ public final class Constants {
     public static final int MOTOR_HOPPER_SPINDEXER = 32;
     public static final int MOTOR_HOPPER_FEED = 35;
     public static final int MOTOR_INTAKE_ROLLER = 31;
-    public static final int MOTOR_INTAKE_DEPLOY = 33;
+    public static final int MOTOR_INTAKE_ARM = 33;
     public static final int MOTOR_CLIMB = 34;
   }
 
   /** CANduit GPIO identifiers */
   public static final class CANduitID {
-    public static final int TURRET_ENCODER1 = 2;
-    public static final int TURRET_ENCODER2 = 3;
+    public static final int TURRET_ENCODER1 = 3;
+    public static final int TURRET_ENCODER2 = 2;
     public static final int CLIMB_SENSOR = 1;
   }
 

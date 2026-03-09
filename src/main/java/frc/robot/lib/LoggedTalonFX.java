@@ -2,8 +2,6 @@ package frc.robot.lib;
 
 import static edu.wpi.first.units.Units.Amps;
 import static edu.wpi.first.units.Units.Celsius;
-import static edu.wpi.first.units.Units.RPM;
-import static edu.wpi.first.units.Units.Rotations;
 import static edu.wpi.first.units.Units.Volts;
 
 import com.ctre.phoenix6.CANBus;
@@ -20,12 +18,14 @@ import edu.wpi.first.units.measure.Voltage;
 import java.util.function.Consumer;
 
 public class LoggedTalonFX extends TalonFX {
-  private final StatusSignal<Current> supplyCurrentSignal;
-  private final StatusSignal<Current> statorCurrentSignal;
   private final StatusSignal<Temperature> temperatureSignal;
   private final StatusSignal<Voltage> motorVoltageSignal;
-  private final StatusSignal<AngularVelocity> velocitySignal;
+  private final StatusSignal<Current> supplyCurrentSignal;
+  private final StatusSignal<Current> statorCurrentSignal;
   private final StatusSignal<Angle> positionSignal;
+  private final StatusSignal<AngularVelocity> velocitySignal;
+  private final StatusSignal<Double> closedLoopReferenceSignal;
+  private final StatusSignal<Double> closedLoopReferenceSlopeSignal;
 
   public LoggedTalonFX(int deviceId, CANBus canbus) {
     this(deviceId, canbus, null);
@@ -44,31 +44,35 @@ public class LoggedTalonFX extends TalonFX {
 
     PhoenixUtil.config(this, config);
 
-    velocitySignal = getVelocity();
-    positionSignal = getPosition();
     temperatureSignal = getDeviceTemp();
     motorVoltageSignal = getMotorVoltage();
     supplyCurrentSignal = getSupplyCurrent();
     statorCurrentSignal = getStatorCurrent();
+    positionSignal = getPosition();
+    velocitySignal = getVelocity();
+    closedLoopReferenceSignal = getClosedLoopReference();
+    closedLoopReferenceSlopeSignal = getClosedLoopReferenceSlope();
 
     PhoenixUtil.registerSignals(
         this,
-        velocitySignal,
-        positionSignal,
         temperatureSignal,
         motorVoltageSignal,
         supplyCurrentSignal,
-        statorCurrentSignal);
+        statorCurrentSignal,
+        positionSignal,
+        velocitySignal,
+        closedLoopReferenceSignal,
+        closedLoopReferenceSlopeSignal);
   }
 
   protected void configure(TalonFXConfiguration config) {}
 
   @Logged(name = "Temperature", importance = Importance.INFO)
-  public double getTemperatureSignal() {
+  public double getMotorTemperature() {
     return temperatureSignal.getValue().in(Celsius);
   }
 
-  @Logged(name = "AppliedVolts", importance = Importance.INFO)
+  @Logged(name = "AppliedVolts", importance = Importance.DEBUG)
   public double getAppliedVolts() {
     return motorVoltageSignal.getValue().in(Volts);
   }
@@ -83,21 +87,23 @@ public class LoggedTalonFX extends TalonFX {
     return supplyCurrentSignal.getValue().in(Amps);
   }
 
-  @Logged(name = "VelocityRPM", importance = Importance.INFO)
-  public double getVelocityRPM() {
-    return velocitySignal.getValue().in(RPM);
+  @Logged(name = "MotorPosition", importance = Importance.DEBUG)
+  public Angle getMotorPosition() {
+    return positionSignal.getValue();
   }
 
-  @Logged(name = "PositionRotations", importance = Importance.INFO)
-  public double getPositionRotations() {
-    return positionSignal.getValue().in(Rotations);
-  }
-
-  public AngularVelocity getVelocityMeasured() {
+  @Logged(name = "MotorVelocity", importance = Importance.DEBUG)
+  public AngularVelocity getMotorVelocity() {
     return velocitySignal.getValue();
   }
 
-  public Angle getPositionMeasured() {
-    return positionSignal.getValue();
+  @Logged(name = "MotorClosedLoopReference", importance = Importance.DEBUG)
+  public double getMotorClosedLoopReference() {
+    return closedLoopReferenceSignal.getValue();
+  }
+
+  @Logged(name = "MotorClosedLoopReferenceSlope", importance = Importance.DEBUG)
+  public double getMotorClosedLoopReferenceSlope() {
+    return closedLoopReferenceSlopeSignal.getValue();
   }
 }

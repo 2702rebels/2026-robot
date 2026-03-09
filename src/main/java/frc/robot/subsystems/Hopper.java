@@ -19,17 +19,17 @@ public final class Hopper extends SubsystemBase {
   // MAKE SURE TO UPDATE THESE VALUES AFTER TUNING
   // DO NOT USE THESE VALUES DIRECTLY IN PERIODIC CODE,
   // USE THEM TO INITIALIZE TUNABLE VALUES AND CONTROLLERS
-  private static final double __kSpindexerS = 0;
-  private static final double __kSpindexerV = 0;
-  private static final double __kSpindexerP = 10;
+  private static final double __kSpindexerS = 2.2;
+  private static final double __kSpindexerV = 0.0025;
+  private static final double __kSpindexerP = 5;
   private static final double __kSpindexerD = 0;
 
-  private static final double __kFeedS = 0;
-  private static final double __kFeedV = 0;
+  private static final double __kFeedS = 5.3;
+  private static final double __kFeedV = 0.07;
   private static final double __kFeedP = 10;
   private static final double __kFeedD = 0;
 
-  private static final double __kSpindexerVelocity = 1000; // RPMs
+  private static final double __kSpindexerVelocity = 700; // RPMs
   private static final double __kFeedVelocity = 1500; // RPMs
 
   @Logged(name = "Spindexer", importance = Importance.INFO)
@@ -41,15 +41,16 @@ public final class Hopper extends SubsystemBase {
   private final VelocityTorqueCurrentFOC spindexerControl;
   private final VelocityTorqueCurrentFOC feedControl;
 
+  @Logged(name = "Disabled", importance = Importance.INFO)
   private boolean disabled;
 
   private static final double kSpindexerStatorCurrentLimit = 30.0;
   private static final double kFeedStatorCurrentLimit = 40.0;
 
   private static final double kSpindexerConversionFactor = (36.0 / 14.0) * (72.0 / 24.0);
-  private static final double kSpindexerTolerance = 5.0; // RPMs
+  private static final double kSpindexerTolerance = 15; // RPMs
   private static final double kFeedConversionFactor = 2.0;
-  private static final double kFeedTolerance = 5.0; // RPMs
+  private static final double kFeedTolerance = 15; // RPMs
 
   public Hopper(CANBus canbus) {
     spindexerMotor =
@@ -120,12 +121,12 @@ public final class Hopper extends SubsystemBase {
 
   @Logged(name = "Velocity/Spindexer", importance = Importance.INFO)
   public double getSpindexerVelocity() {
-    return spindexerMotor.getVelocityRPM() / kSpindexerConversionFactor;
+    return spindexerMotor.getMotorVelocity().in(RPM) / kSpindexerConversionFactor;
   }
 
   @Logged(name = "Velocity/Feed", importance = Importance.INFO)
   public double getFeedVelocity() {
-    return feedMotor.getVelocityRPM() / kFeedConversionFactor;
+    return feedMotor.getMotorVelocity().in(RPM) / kFeedConversionFactor;
   }
 
   /** Disables the subsystem. */

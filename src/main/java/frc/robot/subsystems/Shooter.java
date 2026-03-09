@@ -15,7 +15,6 @@ import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.FunctionalCommand;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 import frc.robot.lib.LoggedTalonFX;
@@ -59,6 +58,7 @@ public final class Shooter extends SubsystemBase {
   private final VelocityTorqueCurrentFOC flywheelControl;
   private final PositionTorqueCurrentFOC hoodControl;
 
+  @Logged(name = "Disabled", importance = Importance.INFO)
   private boolean disabled;
 
   // indicates that the subsystem has been initialized by zeroing the position of the hood
@@ -147,7 +147,18 @@ public final class Shooter extends SubsystemBase {
 
   @Override
   public void periodic() {
-    if (disabled) {
+    // run initialization sequence regardless of subsystem disabled state
+    if (!initialized) {
+      hoodMotor.set(-0.1);
+
+      // hood is zeroed against a hard stop
+      if (hoodMotor.getStatorCurrentAmps() > kHoodStatorCurrentLimit * 0.9
+          && Math.abs(hoodMotor.getMotorVelocity().in(RPM)) < 5) {
+        hoodMotor.stopMotor();
+        reset();
+        initialized = true;
+      }
+    } else if (disabled) {
       flywheelMotorLeader.stopMotor();
       hoodMotor.stopMotor();
     } else if (initialized) {
@@ -199,31 +210,12 @@ public final class Shooter extends SubsystemBase {
 
   @Logged(name = "Angle", importance = Importance.INFO)
   public Angle getAngle() {
-    return hoodMotor.getPositionMeasured().div(kHoodConversionFactor);
+    return hoodMotor.getMotorPosition().div(kHoodConversionFactor);
   }
 
   @Logged(name = "Velocity", importance = Importance.INFO)
   public double getVelocity() {
-    return flywheelMotorLeader.getVelocityRPM() / kFlywheelConversionFactor;
-  }
-
-  /** Initializes the shooter by zeroing the hood. */
-  public Command initialize() {
-    return new FunctionalCommand(
-            () -> {},
-            () -> {
-              hoodMotor.set(-0.1);
-            },
-            interrupted -> {
-              reset();
-              hoodMotor.stopMotor();
-              initialized = true;
-            },
-            () ->
-                hoodMotor.getStatorCurrentAmps() > kHoodStatorCurrentLimit * 0.9
-                    && Math.abs(hoodMotor.getVelocityRPM()) < 5,
-            this)
-        .withName("Initialize");
+    return flywheelMotorLeader.getMotorVelocity().in(RPM) / kFlywheelConversionFactor;
   }
 
   /** Disables the subsystem. */

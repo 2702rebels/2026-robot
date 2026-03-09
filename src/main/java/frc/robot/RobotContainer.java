@@ -60,7 +60,7 @@ public class RobotContainer {
   @Logged(name = "Shooter", importance = Importance.INFO)
   private final Shooter shooter = new Shooter(TunerConstants.kCANBus);
 
-  private static final Trigger disabled = new Trigger(() -> false);
+  private static final Trigger robotEnabled = new Trigger(DriverStation::isEnabled);
 
   // slows down max rotation speed for more precise movements
   private final Trigger preciseRotationActive = controllerDriver.leftStick();
@@ -137,22 +137,32 @@ public class RobotContainer {
 
     drivetrain.registerTelemetry(state::updateSwerveTelemetry);
 
-    resetIntentButton.onTrue(state.setIntent(Intent.kNone));
+    controllerDriver
+        .rightTrigger()
+        .onTrue(Commands.parallel(hopper.enable(), shooter.enable(), turret.enable()));
 
-    controllerDriver.rightTrigger().onTrue(hopper.enable().andThen(shooter.enable()));
-    // enableButton.onTrue(hopper.enable().andThen(shooter.enable()));
-    // enableButton.onTrue(shooter.enable());
-    // enableButton.onTrue(turret.enable());
     enableButton.onTrue(intake.enable());
 
-    resetIntentButton.onTrue(hopper.disable().andThen(shooter.disable()).andThen(intake.disable()));
+    // enableButton.onTrue(hopper.enable().andThen(shooter.enable()));
+    // enableButton.onTrue(shooter.enable().andThen(turret.enable()));
+    // enableButton.onTrue(turret.enable());
+    // enableButton.onTrue(hopper.enable());
 
-    controllerDriver.y().onTrue(shooter.initialize());
+    resetIntentButton.onTrue(state.setIntent(Intent.kNone));
+    resetIntentButton.onTrue(
+        Commands.parallel(intake.disable(), hopper.disable(), turret.disable(), shooter.disable()));
+
+    // controllerDriver.y().onTrue();
     // controllerDriver.b().onTrue(intake.enable().andThen(intake.deploy()));
   }
 
   /** Use this method to configure trigger bindings. */
   private void configureTriggers() {
+    // auto-initialize turret on enable
+    robotEnabled
+        .and(turret::shouldInitialize)
+        .onTrue(turret.enable().andThen(turret.initialize()).andThen(turret.disable()));
+
     RobotModeTriggers.autonomous().onTrue(Commands.runOnce(gamePhaseTracker::startPeriod));
     RobotModeTriggers.teleop().onTrue(Commands.runOnce(gamePhaseTracker::startPeriod));
     RobotModeTriggers.disabled()

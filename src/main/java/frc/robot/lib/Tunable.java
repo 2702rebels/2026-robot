@@ -2,6 +2,7 @@ package frc.robot.lib;
 
 import com.ctre.phoenix6.configs.MotionMagicConfigs;
 import com.ctre.phoenix6.configs.Slot0Configs;
+import com.ctre.phoenix6.configs.Slot1Configs;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.hardware.TalonFXS;
 import edu.wpi.first.math.controller.ArmFeedforward;
@@ -441,9 +442,72 @@ public final class Tunable {
                 new TrapezoidProfile.Constraints(value.getConstraints().maxVelocity, v)));
   }
 
-  /** Makes bound {@link TalonFX} controller at closed loop slot 0 tunable.. */
+  /** Makes bound {@link TalonFX} controller at closed loop slot 0 tunable. */
   public static void bind(String name, TalonFX talonFX) {
     final var config = new Slot0Configs();
+    talonFX.getConfigurator().refresh(config);
+
+    value(
+        name + "/kP",
+        config.kP,
+        v -> {
+          talonFX.getConfigurator().refresh(config);
+          config.kP = v;
+          talonFX.getConfigurator().apply(config);
+        });
+    value(
+        name + "/kI",
+        config.kI,
+        v -> {
+          talonFX.getConfigurator().refresh(config);
+          config.kI = v;
+          talonFX.getConfigurator().apply(config);
+        });
+    value(
+        name + "/kD",
+        config.kD,
+        v -> {
+          talonFX.getConfigurator().refresh(config);
+          config.kD = v;
+          talonFX.getConfigurator().apply(config);
+        });
+    value(
+        name + "/kS",
+        config.kS,
+        v -> {
+          talonFX.getConfigurator().refresh(config);
+          config.kS = v;
+          talonFX.getConfigurator().apply(config);
+        });
+    value(
+        name + "/kV",
+        config.kV,
+        v -> {
+          talonFX.getConfigurator().refresh(config);
+          config.kV = v;
+          talonFX.getConfigurator().apply(config);
+        });
+    value(
+        name + "/kA",
+        config.kA,
+        v -> {
+          talonFX.getConfigurator().refresh(config);
+          config.kA = v;
+          talonFX.getConfigurator().apply(config);
+        });
+    value(
+        name + "/kG",
+        config.kG,
+        v -> {
+          talonFX.getConfigurator().refresh(config);
+          config.kG = v;
+          talonFX.getConfigurator().apply(config);
+        });
+  }
+
+  /** Makes bound {@link TalonFX} controller at closed loop slot 1 tunable. */
+  public static void bind1(String name, TalonFX talonFX) {
+    final var config = new Slot1Configs();
     talonFX.getConfigurator().refresh(config);
 
     value(
@@ -551,7 +615,7 @@ public final class Tunable {
         });
   }
 
-  /** Makes bound {@link TalonFXS} controller at closed loop slot 0 tunable.. */
+  /** Makes bound {@link TalonFXS} controller at closed loop slot 0 tunable. */
   public static void bind(String name, TalonFXS talonFXS) {
     final var config = new Slot0Configs();
     talonFXS.getConfigurator().refresh(config);

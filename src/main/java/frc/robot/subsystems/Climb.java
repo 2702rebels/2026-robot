@@ -28,7 +28,7 @@ public final class Climb extends SubsystemBase {
   private final LoggedTalonFXS motor;
 
   @Logged(name = "Setpoint", importance = Importance.INFO)
-  private double setpoint;
+  private Distance setpoint = Inches.zero();
 
   private final PositionTorqueCurrentFOC control;
 
@@ -38,7 +38,7 @@ public final class Climb extends SubsystemBase {
 
   private static final double kStatorCurrentLimit = 60;
   private static final double kConversionFactor = 1;
-  private static final double kTolerance = 1;
+  private static final double kTolerance = 0.5;
 
   public Climb(CANBus canbus, CANduit canduit) {
     motor =
@@ -82,7 +82,7 @@ public final class Climb extends SubsystemBase {
     if (disabled) {
       motor.stopMotor();
     } else {
-      motor.setControl(control.withPosition(setpoint * kConversionFactor));
+      motor.setControl(control.withPosition(setpoint.in(Inches) * kConversionFactor));
     }
   }
 
@@ -96,12 +96,12 @@ public final class Climb extends SubsystemBase {
   /** Determines whether the subsystem is at its commanded setpoint. */
   @Logged(name = "AtSetpoint", importance = Importance.INFO)
   public boolean isAtSetpoint() {
-    return MathUtil.isNear(setpoint, getPosition(), kTolerance);
+    return MathUtil.isNear(setpoint.in(Inches), getPosition().in(Inches), kTolerance);
   }
 
   @Logged(name = "Position", importance = Importance.INFO)
-  public double getPosition() {
-    return motor.getPositionRotations() / kConversionFactor;
+  public Distance getPosition() {
+    return Inches.of(motor.getMotorPosition().in(Rotations) / kConversionFactor);
   }
 
   /** Disables the subsystem. */

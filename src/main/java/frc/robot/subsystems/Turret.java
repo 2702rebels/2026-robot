@@ -4,7 +4,6 @@ import static edu.wpi.first.units.Units.*;
 
 import com.ctre.phoenix6.CANBus;
 import com.ctre.phoenix6.controls.MotionMagicExpoTorqueCurrentFOC;
-import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
 import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
@@ -28,27 +27,14 @@ public final class Turret extends SubsystemBase {
   // MAKE SURE TO UPDATE THESE VALUES AFTER TUNING
   // DO NOT USE THESE VALUES DIRECTLY IN PERIODIC CODE,
   // USE THEM TO INITIALIZE TUNABLE VALUES AND CONTROLLERS
-  private static final double __kS = 0;
-  private static final double __kP = 0;
-  private static final double __kD = 0;
+  private static final double __kS = 1.5;
+  private static final double __kA = 0.07;
+  private static final double __kV = 0.05;
+  private static final double __kP = 50;
+  private static final double __kD = 3.3;
   private static final double __kMaxVelocity = 0; // rps
   private static final double __kMaxAcceleration = 0; // rps/s
   private static final double __kJerk = 0;
-
-  // Expo kV and kA characterize the profile not gains
-  // https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/motion-magic.html#motion-magic-expo
-  //
-  // max velocity (rps) = min(supply voltage / kV, cruise velocity)
-  // max acceleration (rps/s) = supply voltage / kA
-  //
-  // For example,
-  // kV = 0.03 at 12V -> max velocity = 400 rps
-  // kA = 0.04 at 12V -> max acceleration = 300 rps/s
-  //
-  // SMALLER VALUES REPRESENT HIGHER MAX VELOCITY / ACCELERATION
-  private static final double __kVExpo = 0.3; // 40 rps at 12V, 4 rps at 10:1 ratio
-  private static final double __kAExpo =
-      0.06; // 200 rps at 12V, 20 rps at 10:1 ratio, 200ms to max velocity
 
   private static final double __kSetpointManual = 0;
 
@@ -82,6 +68,7 @@ public final class Turret extends SubsystemBase {
   private final CANduit.PWMInput encoder2;
   private final EasyCRT crt;
 
+  @Logged(name = "Disabled", importance = Importance.INFO)
   private boolean disabled;
 
   // indicates that the subsystem has been initialized by determining the position of the turret
@@ -94,16 +81,35 @@ public final class Turret extends SubsystemBase {
   private static final double kEncoder1Ratio = kTurretTeeth / 17.0;
   private static final double kEncoder2Ratio = kTurretTeeth / 19.0;
 
-  private static final Angle kEncoder1Offset = Degrees.of(-325.29);
-  private static final Angle kEncoder2Offset = Degrees.of(-201.14);
+  private static final Angle kEncoder1Offset = Degrees.of(-166.6);
+  private static final Angle kEncoder2Offset = Degrees.of(-102.8);
   private static final Angle kMinRange = Degrees.of(-260.0);
   private static final Angle kMaxRange = Degrees.of(260.0);
 
-  private static final double kStatorCurrentLimit = 40.0;
-  private static final double kConversionFactor = kTurretTeeth / 22.0;
-  private static final double kMinPosition = -150.0; // degrees
-  private static final double kMaxPosition = 150.0; // degrees
+  private static final double kStatorCurrentLimit = 60.0;
+  private static final double kConversionFactor = kTurretTeeth * 3.0 / 22.0;
+  private static final double kMinPosition = -140.0; // degrees
+  private static final double kMaxPosition = 120.0; // degrees
   private static final double kTolerance = 1.0; // degrees
+
+  // Expo kV and kA characterize the profile not gains
+  // https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/motion-magic.html#motion-magic-expo
+  //
+  // max velocity (rps) = min(supply voltage / kV, cruise velocity)
+  // max acceleration (rps/s) = supply voltage / kA
+  //
+  // For example,
+  // kV = 0.03 at 12V -> max velocity = 400 rps
+  // kA = 0.04 at 12V -> max acceleration = 300 rps/s
+  //
+  // SMALLER VALUES REPRESENT HIGHER MAX VELOCITY / ACCELERATION
+  private static final double __kVExpo = 12.0 / (2.0 * kConversionFactor); // 2 rps
+  private static final double __kAExpo = __kVExpo * 0.2; // 200ms to max velocity
+
+  /** Convert turret angular position to motor position in rotations. */
+  private static double toMotorPosition(Angle value) {
+    return value.in(Rotations) * kConversionFactor;
+  }
 
   public Turret(CANBus canbus, CANduit canduit) {
     motor =
@@ -114,9 +120,17 @@ public final class Turret extends SubsystemBase {
               config.CurrentLimits.StatorCurrentLimit = kStatorCurrentLimit;
               config.CurrentLimits.StatorCurrentLimitEnable = true;
               config.MotorOutput.NeutralMode = NeutralModeValue.Brake;
-              config.MotorOutput.Inverted = InvertedValue.Clockwise_Positive;
+              config.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;
+              config.SoftwareLimitSwitch.ForwardSoftLimitThreshold =
+                  toMotorPosition(Degrees.of(kMaxPosition));
+              config.SoftwareLimitSwitch.ReverseSoftLimitEnable = true;
+              config.SoftwareLimitSwitch.ReverseSoftLimitThreshold =
+                  toMotorPosition(Degrees.of(kMinPosition));
+              config.ClosedLoopGeneral.ContinuousWrap = false;
 
               config.Slot0.kS = __kS;
+              config.Slot0.kA = __kA;
+              config.Slot0.kV = __kV;
               config.Slot0.kP = __kP;
               config.Slot0.kD = __kD;
               config.MotionMagic.MotionMagicCruiseVelocity = __kMaxVelocity;
@@ -243,35 +257,58 @@ public final class Turret extends SubsystemBase {
       offsetStdev = Degrees.of(stdev);
 
       // reset turret motor position to the derived angle when the offset stabilizes
-      if (stdev < 2 * kTolerance && Math.abs(mean) > kTolerance) {
+      if (!initialized && stdev < 2 * kTolerance && Math.abs(mean) > kTolerance) {
         PhoenixUtil.run(
             "Turret Position Init",
             motor.getDeviceID(),
-            () -> motor.setPosition(crtAngle.in(Rotations) * kConversionFactor));
+            () -> motor.setPosition(toMotorPosition(crtAngle)));
 
         initialized = true;
       }
     }
   }
 
-  @Logged(name = "Encoder1", importance = Importance.INFO)
+  @Logged(name = "Encoder1/Angle", importance = Importance.INFO)
   public Angle getEncoder1Angle() {
     return Rotations.of(encoder1Filter.calculate(getEncoderRotations(encoder1)));
   }
 
-  @Logged(name = "Encoder2", importance = Importance.INFO)
+  @Logged(name = "Encoder2/Angle", importance = Importance.INFO)
   public Angle getEncoder2Angle() {
     return Rotations.of(encoder2Filter.calculate(getEncoderRotations(encoder2)));
+  }
+
+  @Logged(name = "Encoder1/Configured", importance = Importance.INFO)
+  public boolean isEncoder1Configured() {
+    return encoder1.isConfigured();
+  }
+
+  @Logged(name = "Encoder2/Configured", importance = Importance.INFO)
+  public boolean isEncoder2Configured() {
+    return encoder2.isConfigured();
+  }
+
+  @Logged(name = "HasSensors", importance = Importance.INFO)
+  public boolean hasSensors() {
+    return encoder1.isConfigured()
+        && encoder2.isConfigured()
+        && encoder1.hasValue()
+        && encoder2.hasValue();
   }
 
   @Override
   public void periodic() {
     if (!initialized) {
-      // ensure both encoders are reporting valid readings
-      if (encoder1.hasValue() && encoder2.hasValue()) {
-        crtStatus = crt.getLastStatus();
-        crt.getAngleOptional().ifPresent(this::estimateTurretAngle);
-      }
+      // ensure both encoders are configured, this function is nop if the encoder
+      // is already configured and retries configuration otherwise
+      encoder1.configure();
+      encoder2.configure();
+    }
+
+    // ensure both encoders are reporting valid readings
+    if (hasSensors()) {
+      crtStatus = crt.getLastStatus();
+      crt.getAngleOptional().ifPresent(this::estimateTurretAngle);
     }
 
     if (disabled) {
@@ -281,7 +318,7 @@ public final class Turret extends SubsystemBase {
         setpoint = Degrees.of(kSetpointManual.get());
       }
 
-      motor.setControl(control.withPosition(setpoint.in(Rotations) * kConversionFactor));
+      motor.setControl(control.withPosition(toMotorPosition(setpoint)));
     }
   }
 
@@ -298,7 +335,7 @@ public final class Turret extends SubsystemBase {
 
   @Logged(name = "Position", importance = Importance.INFO)
   public Angle getPosition() {
-    return motor.getPositionMeasured().div(kConversionFactor);
+    return motor.getMotorPosition().div(kConversionFactor);
   }
 
   /** Disables the subsystem. */
@@ -326,6 +363,16 @@ public final class Turret extends SubsystemBase {
               setpoint = Degrees.of(MathUtil.clamp(position, kMinPosition, kMaxPosition));
             })
         .withName("SetPosition");
+  }
+
+  /** Initializes turret position. */
+  public Command initialize() {
+    return run(() -> motor.set(0.05)).until(this::isInitialized).withTimeout(Seconds.of(5));
+  }
+
+  /** Determines whether initialization sequence should be run. */
+  public boolean shouldInitialize() {
+    return !initialized && hasSensors();
   }
 
   // spotless:off
