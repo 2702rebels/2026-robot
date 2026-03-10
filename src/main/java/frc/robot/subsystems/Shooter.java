@@ -36,8 +36,8 @@ public final class Shooter extends SubsystemBase {
 
   private static final double __kHoodParkAngle = 5;
 
-  private static final double __kHoodManual = 10;
-  private static final double __kFlywheelManual = 3500; // RPMs
+  private static final double __kHoodManual = 15;
+  private static final double __kFlywheelManual = 4000; // RPMs
 
   @Logged(name = "Flywheel/Leader", importance = Importance.INFO)
   private final LoggedTalonFX flywheelMotorLeader;
@@ -76,8 +76,8 @@ public final class Shooter extends SubsystemBase {
   private static final double kHoodPositionTolerance = 0.5; // degrees
   private static final double kHoodConversionFactor = 108.0;
 
-  private static final double kFlywheelVelocityMax = 5000.0;
-  private static final double kFlywheelVelocityTolerance = 3.0; // RPMs
+  private static final double kFlywheelVelocityMax = 6500.0;
+  private static final double kFlywheelVelocityTolerance = 50.0; // RPMs
   private static final double kFlywheelConversionFactor = 15.0 / 18.0;
 
   public Shooter(CANBus canbus) {

@@ -35,11 +35,11 @@ public final class Intake extends SubsystemBase {
   private static final double __kArmMoveD = 35;
 
   private static final double __kArmHoldG = 0;
-  private static final double __kArmHoldS = 0;
-  private static final double __kArmHoldP = 300;
+  private static final double __kArmHoldS = 5;
+  private static final double __kArmHoldP = 1500;
   private static final double __kArmHoldD = 0;
 
-  private static final double __kRollerVelocity = 2500; // RPMs
+  private static final double __kRollerVelocity = 2700; // RPMs
   private static final double __kHoverPosition = 20; // degrees
   private static final double __kDeployPosition = 0; // degrees
 
@@ -65,7 +65,7 @@ public final class Intake extends SubsystemBase {
   private boolean deployed;
   private boolean stopped;
 
-  private static final double kRollerStatorCurrentLimit = 30.0;
+  private static final double kRollerStatorCurrentLimit = 50.0;
   private static final double kArmStatorCurrentLimit = 50.0;
 
   private static final double kRollerConversionFactor = 36.0 / 18.0;
