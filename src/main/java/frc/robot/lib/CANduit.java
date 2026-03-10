@@ -2,6 +2,7 @@ package frc.robot.lib;
 
 import edu.wpi.first.hal.CANData;
 import edu.wpi.first.wpilibj.CAN;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.HashMap;
@@ -75,6 +76,23 @@ public class CANduit {
         value = (data.data[0] & (0b00000001 << gpio)) != 0;
         timestamp = data.timestamp;
       }
+
+      SmartDashboard.putNumber("PhilWasHere", 555);
+      // Hack to test the reset reason counts
+      if (canduit.readDataLatest(1, CLASS_BCAST_STATUS, data) && data.length == 8) {
+        SmartDashboard.putNumber("PowerOn Count", data.data[0]);
+        SmartDashboard.putNumber("Glitch Count", data.data[1]);
+        SmartDashboard.putNumber("Other Count", data.data[2]);
+        SmartDashboard.putNumber("Disable Count", data.data[3]);
+      }
+
+      // Hack to test the gpio mode broadcast
+      if (canduit.readDataLatest(2, CLASS_BCAST_STATUS, data) && data.length == 8) {
+        SmartDashboard.putNumber("GPIO 0 mode", data.data[0]);
+        SmartDashboard.putNumber("GPIO 1 mode", data.data[1]);
+        SmartDashboard.putNumber("GPIO 2 mode", data.data[2]);
+        SmartDashboard.putNumber("GPIO 3 mode", data.data[3]);
+      }
     }
 
     /** Returns most recent value received. */
@@ -118,10 +136,27 @@ public class CANduit {
         // In new fw, width & period are 28bit values
         int lower = (width & 0xF0000000) >> 28;
         int upper = (period & 0xF0000000) >> 28;
-        gen_count = lower | upper << 4;
+        gen_count = lower | (upper << 4);
         width &= 0xFFFFFFF;
         period &= 0xFFFFFFF;
         timestamp = data.timestamp;
+      }
+
+      SmartDashboard.putNumber("PhilWasHere", 1234);
+      // Hack to test the reset reason counts
+      if (canduit.readDataLatest(1, CLASS_BCAST_STATUS, data) && data.length == 8) {
+        SmartDashboard.putNumber("PowerOn Count", data.data[0]);
+        SmartDashboard.putNumber("Glitch Count", data.data[1]);
+        SmartDashboard.putNumber("Other Count", data.data[2]);
+        SmartDashboard.putNumber("Disable Count", data.data[3]);
+      }
+
+      // Hack to test the gpio mode broadcast
+      if (canduit.readDataLatest(2, CLASS_BCAST_STATUS, data) && data.length == 8) {
+        SmartDashboard.putNumber("GPIO 0 mode", data.data[0]);
+        SmartDashboard.putNumber("GPIO 1 mode", data.data[1]);
+        SmartDashboard.putNumber("GPIO 2 mode", data.data[2]);
+        SmartDashboard.putNumber("GPIO 3 mode", data.data[3]);
       }
     }
 
@@ -220,6 +255,7 @@ public class CANduit {
   }
 
   /** Reads low-level data from the CAN. Returns latest packet. */
+  // THis assumes gpio as the API index which isn't always the case.  Maybe rename gpio to index?
   private boolean readDataLatest(int gpio, int apiClass, CANData data) {
     if (!connected) return false;
     return can.readPacketLatest(apiClass << 4 | gpio, data);
