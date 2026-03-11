@@ -74,8 +74,8 @@ public final class Turret extends SubsystemBase {
   private static final double kTurretTeeth = 218.0;
   private static final double kEncoder1Ratio = kTurretTeeth / 17.0;
   private static final double kEncoder2Ratio = kTurretTeeth / 19.0;
-  private static final Angle kEncoder1Offset = Degrees.of(291.39666601294374);
-  private static final Angle kEncoder2Offset = Degrees.of(186.03676383105295);
+  private static final Angle kEncoder1Offset = Degrees.of(112.14);
+  private static final Angle kEncoder2Offset = Degrees.of(184.24);
 
   private static final double kStatorCurrentLimit = 30.0;
   private static final double kConversionFactor = kTurretTeeth / 22.0;
@@ -83,7 +83,7 @@ public final class Turret extends SubsystemBase {
   private static final double kMaxPosition = 200.0; // degrees
   private static final double kTolerance = 1.0; // degrees
   private static final double kScale = 323.0 / ((19 - 17) * kTurretTeeth);
-  private static final double kAcceptableError = 0.3;
+  private static final double kAcceptableError = 0.18;
 
   private int lastUsedEncoder = 1;
 
@@ -129,11 +129,13 @@ public final class Turret extends SubsystemBase {
     crtAngle = Degrees.zero();
   }
 
+  public record AngleMeasurement(Angle angle, int gen_count) {}
+
   /**
    * Converts raw PWM input into encoder position in degrees for REV through-borer encoder V1.
    * https://www.revrobotics.com/rev-11-1271/
    */
-  private static Angle getEncoderAngle(CANduit.PWMInput encoder) {
+  private static AngleMeasurement getEncoderAngle(CANduit.PWMInput encoder) {
     // 0°: 1μs, 360°: 1024μs
     //
     // REV encoders were found to be not agreeing to the specification,
@@ -143,15 +145,18 @@ public final class Turret extends SubsystemBase {
     //
     // below formula seems to handle both situations reasonably well
 
-    // Subtract min pulse width from period and pulse width to get zero to 360 less a step
+    // Subtract min pulse width from period and pulse width to get range [0, 360)
     final double v = Math.max(encoder.getPulseWidth() - 1000, 0); // Subtract min pulse width 1usec
+    SmartDashboard.putNumber(encoder.toString() + " P Width", v);
     // final double p = Math.min(encoder.getPeriod(), 1025000); // nanoseconds
     final double p = encoder.getPeriod() - 1000; // nanoseconds
     SmartDashboard.putNumber(encoder.toString() + " Period", p);
     final int g = encoder.getGenCount();
     SmartDashboard.putNumber(encoder.toString() + " GenCount", g);
+
+    Angle a = Radians.of(MathUtil.inputModulus(2 * Math.PI * v / p, 0, 2 * Math.PI));
     // Scale the values to get 0 to 360 degrees
-    return Radians.of(MathUtil.inputModulus(2 * Math.PI * v / p, 0, 2 * Math.PI));
+    return new AngleMeasurement(a, g);
   }
 
   private static Angle mod(Angle x) {
@@ -184,7 +189,7 @@ public final class Turret extends SubsystemBase {
     Pair<Angle, Double> calcRotation1 = CalculateAngleAndError(encoder1, encoder2);
     SmartDashboard.putNumber("calcRot1", calcRotation1.getFirst().in(Rotations));
     SmartDashboard.putNumber("error1", calcRotation1.getSecond());
-    // inal Angle halfRotation = Angle.ofBaseUnits(0.5, Rotations);
+    // final Angle halfRotation = Angle.ofBaseUnits(0.5, Rotations);
     final Angle halfRotation = Rotations.of(0.5);
 
     Pair<Angle, Double> calcRotation2 =
@@ -204,17 +209,18 @@ public final class Turret extends SubsystemBase {
             calcRotation2.getSecond());
     SmartDashboard.putNumber("calcRot2", calcRotation2.getFirst().in(Rotations));
     SmartDashboard.putNumber("error2", calcRotation2.getSecond());
-    // double minError = Math.min(calcRotation1.getSecond(), calcRotation2.getSecond());
-    // if (minError > kAcceptableError) {
-    //  return lastUsedEncoder == 1 ? calcRotation1.getFirst() : calcRotation2.getFirst();
-    // }
-    // if (calcRotation1.getSecond() < calcRotation2.getSecond()) {
-    //  lastUsedEncoder = 1;
-    //  return calcRotation1.getFirst();
-    // } else {
-    //  lastUsedEncoder = 2;
-    //  return calcRotation2.getFirst();
-    // }
+    double minError = Math.min(calcRotation1.getSecond(), calcRotation2.getSecond());
+    if (minError > kAcceptableError) {
+      return lastUsedEncoder == 1 ? calcRotation1.getFirst() : calcRotation2.getFirst();
+    }
+    if (calcRotation1.getSecond() < calcRotation2.getSecond()) {
+      lastUsedEncoder = 1;
+      return calcRotation1.getFirst();
+    } else {
+      lastUsedEncoder = 2;
+      return calcRotation2.getFirst();
+    }
+    /*
     if (calcRotation1.getSecond() < calcRotation2.getSecond()) {
       SmartDashboard.putNumber("min_err", calcRotation1.getSecond());
       return calcRotation1.getFirst();
@@ -222,18 +228,24 @@ public final class Turret extends SubsystemBase {
       SmartDashboard.putNumber("min_err", calcRotation2.getSecond());
       return calcRotation2.getFirst();
     }
+    */
   }
 
   @Logged(name = "Encoder1", importance = Importance.INFO)
   public Angle getEncoder1Angle() {
-    return getEncoderAngle(encoder1);
+    AngleMeasurement am = getEncoderAngle(encoder1);
+    SmartDashboard.putNumber("Encoder1 gen count", am.gen_count);
+    return am.angle;
   }
 
   @Logged(name = "Encoder2", importance = Importance.INFO)
   public Angle getEncoder2Angle() {
+    AngleMeasurement am = getEncoderAngle(encoder2);
+    SmartDashboard.putNumber("Encoder2 gen count", am.gen_count);
     // XXX invert rotation for test bench
     // return Rotation.one().minus(getEncoderAngle(encoder2));
-    return getEncoderAngle(encoder2);
+    return Rotation.one().minus(am.angle);
+    // return am.angle;
   }
 
   @Override

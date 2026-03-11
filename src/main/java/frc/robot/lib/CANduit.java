@@ -134,15 +134,19 @@ public class CANduit {
         width = bb.getInt();
         period = bb.getInt();
         // In new fw, width & period are 28bit values
-        int lower = (width & 0xF0000000) >> 28;
-        int upper = (period & 0xF0000000) >> 28;
+        // unsigned right shift (>>>)
+        int lower = width >>> 28;
+        int upper = period >>> 28;
+        // SmartDashboard.putNumber("gen low", lower);
+        // SmartDashboard.putNumber("gen upper", upper);
         gen_count = lower | (upper << 4);
+        // In new CANduit fw, width & period are 28bit values
         width &= 0xFFFFFFF;
         period &= 0xFFFFFFF;
         timestamp = data.timestamp;
       }
 
-      SmartDashboard.putNumber("PhilWasHere", 1234);
+      // SmartDashboard.putNumber("PhilWasHere", 1234);
       // Hack to test the reset reason counts
       if (canduit.readDataLatest(1, CLASS_BCAST_STATUS, data) && data.length == 8) {
         SmartDashboard.putNumber("PowerOn Count", data.data[0]);
