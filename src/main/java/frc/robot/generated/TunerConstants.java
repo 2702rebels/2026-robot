@@ -20,16 +20,16 @@ import frc.robot.subsystems.CommandSwerveDrivetrain;
 // 0. Use Phoenix Tuner
 // 1. Reset Absolute Encoder Offset to 0 for all Talon FXS controllers
 // 2. Zero all modules using zeroing blocks with bevel gear facing inwards (into the robot)
-// 3. For each controller note the Sensor/Feedback reading, take the fractional part and invert the
-// sign
-//    For example, if the sensor reading is -1.0567, then the offset should be set to 0.0567
-// rotations
+// 3. For each controller note the Sensor/Feedback reading, take the fractional part and
+//    invert the sign. For example, if the sensor reading is -1.0567, then the offset should
+//    be set to 0.0567 rotations.
 //
 // To verify set the Absolute Encoder Offset in the External Feedback section
 // and note that the sensor reading should be close to an integer (0, 1, -1, 2, -2, etc.)
 //
 // * The sensor reading is not the "raw" reading but is impacted by the absolute encoder offset
 // value.
+//
 // ** The absolute encoder offset can be set to a value between -1 and 1 and will be clamped
 // otherwise.
 //
@@ -47,7 +47,7 @@ public class TunerConstants {
       new Slot0Configs()
           .withKP(100)
           .withKI(0)
-          .withKD(0.8)
+          .withKD(0.7)
           .withKS(0.1)
           .withKV(2.85)
           .withKA(0)
@@ -55,9 +55,10 @@ public class TunerConstants {
 
   // When using closed-loop control, the drive motor uses the control
   // output type specified by SwerveModuleConstants.DriveMotorClosedLoopOutput
+  // Voltage: new
+  // Slot0Configs().withKP(0.16).withKI(0).withKD(0).withKS(0.1).withKV(0.124).withKA(0.01)
   private static final Slot0Configs driveGains =
-      // FOC: new Slot0Configs().withKP(6).withKI(0).withKD(0).withKS(4.2).withKV(0).withKA(0.5);
-      new Slot0Configs().withKP(0.16).withKI(0).withKD(0).withKS(0.1).withKV(0.124).withKA(0.01);
+      new Slot0Configs().withKP(8).withKI(0).withKD(0).withKS(4.5).withKV(0).withKA(0);
 
   // The closed-loop output type to use for the steer motors;
   // This affects the PID/FF gains for the steer motors
@@ -65,7 +66,8 @@ public class TunerConstants {
 
   // The closed-loop output type to use for the drive motors;
   // This affects the PID/FF gains for the drive motors
-  private static final ClosedLoopOutputType kDriveClosedLoopOutput = ClosedLoopOutputType.Voltage;
+  private static final ClosedLoopOutputType kDriveClosedLoopOutput =
+      ClosedLoopOutputType.TorqueCurrentFOC;
 
   // The type of motor used for the drive motor
   private static final DriveMotorArrangement kDriveMotorType =
