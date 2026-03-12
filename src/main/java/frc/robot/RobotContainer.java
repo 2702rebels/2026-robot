@@ -26,6 +26,7 @@ import frc.robot.lib.CANduit;
 import frc.robot.lib.GamePhaseTracker;
 import frc.robot.lib.Tunable;
 import frc.robot.subsystems.AprilTagDetector;
+import frc.robot.subsystems.Climb;
 import frc.robot.subsystems.CommandSwerveDrivetrain;
 import frc.robot.subsystems.Hopper;
 import frc.robot.subsystems.Intake;
@@ -60,6 +61,9 @@ public class RobotContainer {
   @Logged(name = "Shooter", importance = Importance.INFO)
   private final Shooter shooter = new Shooter(TunerConstants.kCANBus);
 
+  @Logged(name = "Climb", importance = Importance.INFO)
+  private final Climb climb;
+
   private static final Trigger robotEnabled = new Trigger(DriverStation::isEnabled);
 
   // slows down max rotation speed for more precise movements
@@ -86,6 +90,7 @@ public class RobotContainer {
 
   public RobotContainer(CANduit canduit) {
     turret = new Turret(TunerConstants.kCANBus, canduit);
+    climb = new Climb(TunerConstants.kCANBus, canduit);
 
     state.bind(drivetrain);
     state.setVisionStateSupplier(aprilTagDetector::getState);
@@ -151,6 +156,12 @@ public class RobotContainer {
     resetIntentButton.onTrue(state.setIntent(Intent.kNone));
     resetIntentButton.onTrue(
         Commands.parallel(intake.disable(), hopper.disable(), turret.disable(), shooter.disable()));
+
+    controllerDriver.povUp().and(() -> !climb.isClimbed()).onTrue(climb.extend());
+    controllerDriver.povDown().and(() -> !climb.isClimbed()).onTrue(climb.retract());
+
+    controllerDriver.leftBumper().and(climb::isExtended).onTrue(climb.engage());
+    controllerDriver.x().and(climb::isClimbed).onTrue(climb.disengage());
 
     // controllerDriver.y().onTrue();
     // controllerDriver.b().onTrue(intake.enable().andThen(intake.deploy()));
