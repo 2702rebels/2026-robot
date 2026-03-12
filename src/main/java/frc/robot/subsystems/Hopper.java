@@ -41,11 +41,11 @@ public final class Hopper extends SubsystemBase {
   private final VelocityTorqueCurrentFOC spindexerControl;
   private final VelocityTorqueCurrentFOC feedControl;
 
-  @Logged(name = "Disabled", importance = Importance.INFO)
-  private boolean disabled;
+  @Logged(name = "Enabled", importance = Importance.INFO)
+  private boolean enabled = false;
 
-  private static final double kSpindexerStatorCurrentLimit = 30.0;
-  private static final double kFeedStatorCurrentLimit = 40.0;
+  private static final double kSpindexerStatorCurrentLimit = 40.0;
+  private static final double kFeedStatorCurrentLimit = 60.0;
 
   private static final double kSpindexerConversionFactor = (36.0 / 14.0) * (72.0 / 24.0);
   private static final double kSpindexerTolerance = 15; // RPMs
@@ -62,6 +62,7 @@ public final class Hopper extends SubsystemBase {
               config.CurrentLimits.StatorCurrentLimitEnable = true;
               config.MotorOutput.NeutralMode = NeutralModeValue.Coast;
               config.MotorOutput.Inverted = InvertedValue.Clockwise_Positive;
+              config.MotorOutput.ControlTimesyncFreqHz = 100;
 
               config.Slot0.kS = __kSpindexerS;
               config.Slot0.kV = __kSpindexerV;
@@ -78,6 +79,7 @@ public final class Hopper extends SubsystemBase {
               config.CurrentLimits.StatorCurrentLimitEnable = true;
               config.MotorOutput.NeutralMode = NeutralModeValue.Coast;
               config.MotorOutput.Inverted = InvertedValue.Clockwise_Positive;
+              config.MotorOutput.ControlTimesyncFreqHz = 100;
 
               config.Slot0.kS = __kFeedS;
               config.Slot0.kV = __kFeedV;
@@ -85,22 +87,20 @@ public final class Hopper extends SubsystemBase {
               config.Slot0.kD = __kFeedD;
             });
 
-    spindexerControl = new VelocityTorqueCurrentFOC(0).withSlot(0);
-    feedControl = new VelocityTorqueCurrentFOC(0).withSlot(0);
+    spindexerControl =
+        new VelocityTorqueCurrentFOC(0).withSlot(0).withUseTimesync(true).withUpdateFreqHz(0);
+
+    feedControl =
+        new VelocityTorqueCurrentFOC(0).withSlot(0).withUseTimesync(true).withUpdateFreqHz(0);
 
     // make configuration tunable (must be done after configuration is bound to the motor)
     Tunable.bind("Spindexer", spindexerMotor);
     Tunable.bind("Feed", feedMotor);
-
-    disabled = true;
   }
 
   @Override
   public void periodic() {
-    if (disabled) {
-      spindexerMotor.stopMotor();
-      feedMotor.stopMotor();
-    } else {
+    if (enabled) {
       spindexerMotor.setControl(
           spindexerControl.withVelocity(
               RotationsPerSecond.convertFrom(kSpindexerVelocity.get(), RPM)
@@ -109,6 +109,9 @@ public final class Hopper extends SubsystemBase {
       feedMotor.setControl(
           feedControl.withVelocity(
               RotationsPerSecond.convertFrom(kFeedVelocity.get(), RPM) * kFeedConversionFactor));
+    } else {
+      spindexerMotor.stopMotor();
+      feedMotor.stopMotor();
     }
   }
 
@@ -133,7 +136,7 @@ public final class Hopper extends SubsystemBase {
   public Command disable() {
     return runOnce(
             () -> {
-              disabled = true;
+              enabled = false;
             })
         .withName("HopperDisable");
   }
@@ -142,7 +145,7 @@ public final class Hopper extends SubsystemBase {
   public Command enable() {
     return runOnce(
             () -> {
-              disabled = false;
+              enabled = true;
             })
         .withName("HopperEnable");
   }

@@ -678,6 +678,69 @@ public final class Tunable {
         });
   }
 
+  /** Makes bound {@link TalonFXS} controller at closed loop slot 0 tunable. */
+  public static void bind1(String name, TalonFXS talonFXS) {
+    final var config = new Slot1Configs();
+    talonFXS.getConfigurator().refresh(config);
+
+    value(
+        name + "/kP",
+        config.kP,
+        v -> {
+          talonFXS.getConfigurator().refresh(config);
+          config.kP = v;
+          talonFXS.getConfigurator().apply(config);
+        });
+    value(
+        name + "/kI",
+        config.kI,
+        v -> {
+          talonFXS.getConfigurator().refresh(config);
+          config.kI = v;
+          talonFXS.getConfigurator().apply(config);
+        });
+    value(
+        name + "/kD",
+        config.kD,
+        v -> {
+          talonFXS.getConfigurator().refresh(config);
+          config.kD = v;
+          talonFXS.getConfigurator().apply(config);
+        });
+    value(
+        name + "/kS",
+        config.kS,
+        v -> {
+          talonFXS.getConfigurator().refresh(config);
+          config.kS = v;
+          talonFXS.getConfigurator().apply(config);
+        });
+    value(
+        name + "/kV",
+        config.kV,
+        v -> {
+          talonFXS.getConfigurator().refresh(config);
+          config.kV = v;
+          talonFXS.getConfigurator().apply(config);
+        });
+    value(
+        name + "/kA",
+        config.kA,
+        v -> {
+          talonFXS.getConfigurator().refresh(config);
+          config.kA = v;
+          talonFXS.getConfigurator().apply(config);
+        });
+    value(
+        name + "/kG",
+        config.kG,
+        v -> {
+          talonFXS.getConfigurator().refresh(config);
+          config.kG = v;
+          talonFXS.getConfigurator().apply(config);
+        });
+  }
+
   /** Makes bound {@link TalonFXS} controller Motion Magic tunable. */
   public static void bindMotionProfile(String name, TalonFXS talonFXS) {
     final var config = new MotionMagicConfigs();

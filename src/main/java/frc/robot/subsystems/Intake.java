@@ -50,17 +50,17 @@ public final class Intake extends SubsystemBase {
   private final LoggedTalonFX armMotor;
 
   @Logged(name = "Setpoint/Arm", importance = Importance.INFO)
-  private Angle armSetpoint;
+  private Angle armSetpoint = Degrees.of(0);
 
   @Logged(name = "Setpoint/Roller", importance = Importance.INFO)
-  private double rollerSetpoint;
+  private double rollerSetpoint = 0;
 
   private final VelocityTorqueCurrentFOC rollerControl;
   private final PositionTorqueCurrentFOC armMoveControl;
   private final PositionTorqueCurrentFOC armHoldControl;
 
-  @Logged(name = "Disabled", importance = Importance.INFO)
-  private boolean disabled;
+  @Logged(name = "Enabled", importance = Importance.INFO)
+  private boolean enabled = false;
 
   private boolean deployed;
   private boolean stopped;
@@ -86,6 +86,7 @@ public final class Intake extends SubsystemBase {
               config.CurrentLimits.StatorCurrentLimit = kRollerStatorCurrentLimit;
               config.CurrentLimits.StatorCurrentLimitEnable = true;
               config.MotorOutput.NeutralMode = NeutralModeValue.Coast;
+              config.MotorOutput.ControlTimesyncFreqHz = 100;
 
               config.Slot0.kS = __kRollerS;
               config.Slot0.kV = __kRollerV;
@@ -102,6 +103,7 @@ public final class Intake extends SubsystemBase {
               config.CurrentLimits.StatorCurrentLimitEnable = true;
               config.MotorOutput.NeutralMode = NeutralModeValue.Brake;
               config.MotorOutput.Inverted = InvertedValue.Clockwise_Positive;
+              config.MotorOutput.ControlTimesyncFreqHz = 250;
               config.Feedback.SensorToMechanismRatio = kArmConversionFactor;
               config.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;
               config.SoftwareLimitSwitch.ForwardSoftLimitThreshold = kMaxPosition.in(Rotations);
@@ -123,9 +125,14 @@ public final class Intake extends SubsystemBase {
               config.Slot1.StaticFeedforwardSign = StaticFeedforwardSignValue.UseClosedLoopSign;
             });
 
-    rollerControl = new VelocityTorqueCurrentFOC(0).withSlot(0);
-    armMoveControl = new PositionTorqueCurrentFOC(0).withSlot(0);
-    armHoldControl = new PositionTorqueCurrentFOC(0).withSlot(1);
+    rollerControl =
+        new VelocityTorqueCurrentFOC(0).withSlot(0).withUseTimesync(true).withUpdateFreqHz(0);
+
+    armMoveControl =
+        new PositionTorqueCurrentFOC(0).withSlot(0).withUseTimesync(true).withUpdateFreqHz(0);
+
+    armHoldControl =
+        new PositionTorqueCurrentFOC(0).withSlot(1).withUseTimesync(true).withUpdateFreqHz(0);
 
     // make configuration tunable (must be done after configuration is bound to the motor)
     Tunable.bind("Roller", rollerMotor);
@@ -134,36 +141,24 @@ public final class Intake extends SubsystemBase {
 
     // zero position based on the initial configuration
     PhoenixUtil.run("Intake Arm Zero", armMotor.getDeviceID(), () -> armMotor.setPosition(0));
-
-    disabled = true;
-    armSetpoint = Degrees.of(0);
-    rollerSetpoint = 0;
-  }
-
-  /** Detects stall of the roller. */
-  private boolean isRollerStalled() {
-    return rollerMotor.getStatorCurrentAmps() > kRollerStatorCurrentLimit * 0.9
-        && Math.abs(rollerMotor.getMotorVelocity().in(RPM)) < 5;
   }
 
   @Override
   public void periodic() {
-    if (disabled) {
-      rollerMotor.stopMotor();
-      armMotor.stopMotor();
-    } else {
+    if (enabled) {
       rollerSetpoint = kRollerVelocity.get();
       rollerMotor.setControl(
           rollerControl.withVelocity(
               RotationsPerSecond.convertFrom(rollerSetpoint, RPM) * kRollerConversionFactor));
 
-      armSetpoint = Degrees.of(isRollerStalled() ? kHoverPosition.get() : kDeployPosition.get());
+      armSetpoint =
+          Degrees.of(rollerMotor.isStalled() ? kHoverPosition.get() : kDeployPosition.get());
 
       // we have two control modes here to consider: when we are at zero, we are resting
       // on the hard stops and we don't need kG/kS to maintain position, however, for
-      // full motion we need to use control mode with kG/kS
+      // the full motion we need to use control mode with kG/kS
       //
-      // note that we only switch to hold mode when we are _actually_ close to the zero septoint
+      // note that we only switch to hold mode when we are _actually_ close to the zero setpoint
       if (armSetpoint.in(Degrees) <= kArmHoldThreshold
           && getAngle().in(Degrees) <= kArmHoldThreshold)
         armMotor.setControl(armHoldControl.withPosition(armSetpoint.in(Rotations)));
@@ -190,6 +185,9 @@ public final class Intake extends SubsystemBase {
 
       // armMotor.setControl(
       //     armControl.withPosition(armSetpoint.in(Rotations) * kArmConversionFactor));
+    } else {
+      rollerMotor.stopMotor();
+      armMotor.stopMotor();
     }
   }
 
@@ -219,7 +217,7 @@ public final class Intake extends SubsystemBase {
   public Command disable() {
     return runOnce(
             () -> {
-              disabled = true;
+              enabled = false;
             })
         .withName("IntakeDisable");
   }
@@ -228,7 +226,7 @@ public final class Intake extends SubsystemBase {
   public Command enable() {
     return runOnce(
             () -> {
-              disabled = false;
+              enabled = true;
             })
         .withName("IntakeEnable");
   }

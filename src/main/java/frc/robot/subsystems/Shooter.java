@@ -49,7 +49,7 @@ public final class Shooter extends SubsystemBase {
   private final LoggedTalonFX hoodMotor;
 
   @Logged(name = "Setpoint/Flywheel", importance = Importance.INFO)
-  private double flywheelSetpoint;
+  private double flywheelSetpoint = 0;
 
   @Logged(name = "Setpoint/Hood", importance = Importance.INFO)
   private Angle hoodSetpoint = Degrees.zero();
@@ -58,11 +58,11 @@ public final class Shooter extends SubsystemBase {
   private final VelocityTorqueCurrentFOC flywheelControl;
   private final PositionTorqueCurrentFOC hoodControl;
 
-  @Logged(name = "Disabled", importance = Importance.INFO)
-  private boolean disabled;
+  @Logged(name = "Enabled", importance = Importance.INFO)
+  private boolean enabled = false;
 
   // indicates that the subsystem has been initialized by zeroing the position of the hood
-  private boolean initialized;
+  private boolean initialized = false;
   private boolean hoodParked;
 
   // manual mode used for testing
@@ -89,6 +89,7 @@ public final class Shooter extends SubsystemBase {
               config.CurrentLimits.StatorCurrentLimit = kFlywheelStatorCurrentLimit;
               config.CurrentLimits.StatorCurrentLimitEnable = true;
               config.MotorOutput.NeutralMode = NeutralModeValue.Coast;
+              config.MotorOutput.ControlTimesyncFreqHz = 250;
 
               config.Slot0.kS = __kFlywheelS;
               config.Slot0.kV = __kFlywheelV;
@@ -104,6 +105,7 @@ public final class Shooter extends SubsystemBase {
               config.CurrentLimits.StatorCurrentLimit = kFlywheelStatorCurrentLimit;
               config.CurrentLimits.StatorCurrentLimitEnable = true;
               config.MotorOutput.NeutralMode = NeutralModeValue.Coast;
+              config.MotorOutput.ControlTimesyncFreqHz = 250;
             });
 
     hoodMotor =
@@ -115,6 +117,7 @@ public final class Shooter extends SubsystemBase {
               config.CurrentLimits.StatorCurrentLimitEnable = true;
               config.MotorOutput.NeutralMode = NeutralModeValue.Brake;
               config.MotorOutput.Inverted = InvertedValue.Clockwise_Positive;
+              config.MotorOutput.ControlTimesyncFreqHz = 100;
 
               config.Slot0.kG = __kHoodG;
               config.Slot0.kS = __kHoodS;
@@ -123,25 +126,29 @@ public final class Shooter extends SubsystemBase {
             });
 
     // follow leader's output (inverted)
-    followerControl = new Follower(flywheelMotorLeader.getDeviceID(), MotorAlignmentValue.Opposed);
+    followerControl =
+        new Follower(flywheelMotorLeader.getDeviceID(), MotorAlignmentValue.Opposed)
+            .withUpdateFreqHz(250);
+
     PhoenixUtil.run(
         "Shooter Follow Leader",
         flywheelMotorFollower.getDeviceID(),
         () -> flywheelMotorFollower.setControl(followerControl));
 
-    flywheelControl = new VelocityTorqueCurrentFOC(0).withSlot(0);
+    flywheelControl =
+        new VelocityTorqueCurrentFOC(0).withSlot(0).withUseTimesync(true).withUpdateFreqHz(0);
+
     hoodControl =
-        new PositionTorqueCurrentFOC(KHoodPositionMax * kHoodConversionFactor).withSlot(0);
+        new PositionTorqueCurrentFOC(KHoodPositionMax * kHoodConversionFactor)
+            .withSlot(0)
+            .withUseTimesync(true)
+            .withUpdateFreqHz(0);
 
     // make configuration tunable (must be done after configuration is bound to the motor)
     Tunable.bind("Flywheel", flywheelMotorLeader);
     Tunable.bind("Hood", hoodMotor);
 
     reset();
-
-    disabled = true;
-    flywheelSetpoint = 0;
-
     manual = true; // FOR TESTING ONLY
   }
 
@@ -152,16 +159,15 @@ public final class Shooter extends SubsystemBase {
       hoodMotor.set(-0.1);
 
       // hood is zeroed against a hard stop
-      if (hoodMotor.getStatorCurrentAmps() > kHoodStatorCurrentLimit * 0.9
-          && Math.abs(hoodMotor.getMotorVelocity().in(RPM)) < 5) {
+      if (hoodMotor.isStalled()) {
         hoodMotor.stopMotor();
         reset();
         initialized = true;
       }
-    } else if (disabled) {
+    } else if (!enabled) {
       flywheelMotorLeader.stopMotor();
       hoodMotor.stopMotor();
-    } else if (initialized) {
+    } else {
       if (manual) {
         flywheelSetpoint = kFlywheelManual.get();
         hoodSetpoint = Degrees.of(kHoodManual.get());
@@ -222,7 +228,7 @@ public final class Shooter extends SubsystemBase {
   public Command disable() {
     return runOnce(
             () -> {
-              disabled = true;
+              enabled = false;
             })
         .withName("ShooterDisable");
   }
@@ -231,7 +237,7 @@ public final class Shooter extends SubsystemBase {
   public Command enable() {
     return runOnce(
             () -> {
-              disabled = false;
+              enabled = true;
             })
         .withName("ShooterEnable");
   }
@@ -266,7 +272,7 @@ public final class Shooter extends SubsystemBase {
 
   // spotless:off
   private static Tunable.DoubleValue kHoodParkAngle = Tunable.value("Hood/ParkAngle", __kHoodParkAngle);
-  private static Tunable.DoubleValue kFlywheelManual = Tunable.value("Flywheel/Manual", __kFlywheelManual);
   private static Tunable.DoubleValue kHoodManual = Tunable.value("Hood/Manual", __kHoodManual);
+  private static Tunable.DoubleValue kFlywheelManual = Tunable.value("Flywheel/Manual", __kFlywheelManual);
   // spotless:on
 }

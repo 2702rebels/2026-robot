@@ -68,11 +68,11 @@ public final class Turret extends SubsystemBase {
   private final CANduit.PWMInput encoder2;
   private final EasyCRT crt;
 
-  @Logged(name = "Disabled", importance = Importance.INFO)
-  private boolean disabled;
+  @Logged(name = "Enabled", importance = Importance.INFO)
+  private boolean enabled = false;
 
   // indicates that the subsystem has been initialized by determining the position of the turret
-  private boolean initialized;
+  private boolean initialized = false;
 
   // manual mode used for testing
   private boolean manual;
@@ -81,8 +81,8 @@ public final class Turret extends SubsystemBase {
   private static final double kEncoder1Ratio = kTurretTeeth / 17.0;
   private static final double kEncoder2Ratio = kTurretTeeth / 19.0;
 
-  private static final Angle kEncoder1Offset = Degrees.of(-166.6);
-  private static final Angle kEncoder2Offset = Degrees.of(-102.8);
+  private static final Angle kEncoder1Offset = Degrees.of(-92.3);
+  private static final Angle kEncoder2Offset = Degrees.of(-173.0);
   private static final Angle kMinRange = Degrees.of(-260.0);
   private static final Angle kMaxRange = Degrees.of(260.0);
 
@@ -120,13 +120,16 @@ public final class Turret extends SubsystemBase {
               config.CurrentLimits.StatorCurrentLimit = kStatorCurrentLimit;
               config.CurrentLimits.StatorCurrentLimitEnable = true;
               config.MotorOutput.NeutralMode = NeutralModeValue.Brake;
+              config.MotorOutput.ControlTimesyncFreqHz = 100;
+              config.ClosedLoopGeneral.ContinuousWrap = false;
+
               config.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;
               config.SoftwareLimitSwitch.ForwardSoftLimitThreshold =
                   toMotorPosition(Degrees.of(kMaxPosition));
+
               config.SoftwareLimitSwitch.ReverseSoftLimitEnable = true;
               config.SoftwareLimitSwitch.ReverseSoftLimitThreshold =
                   toMotorPosition(Degrees.of(kMinPosition));
-              config.ClosedLoopGeneral.ContinuousWrap = false;
 
               config.Slot0.kS = __kS;
               config.Slot0.kA = __kA;
@@ -140,7 +143,11 @@ public final class Turret extends SubsystemBase {
               config.MotionMagic.MotionMagicExpo_kA = __kAExpo;
             });
 
-    control = new MotionMagicExpoTorqueCurrentFOC(0).withSlot(0);
+    control =
+        new MotionMagicExpoTorqueCurrentFOC(0)
+            .withSlot(0)
+            .withUseTimesync(true)
+            .withUpdateFreqHz(0);
 
     // make configuration tunable (must be done after configuration is bound to the motor)
     Tunable.bind("Turret", motor);
@@ -155,9 +162,6 @@ public final class Turret extends SubsystemBase {
                 .withAbsoluteEncoderOffsets(kEncoder1Offset, kEncoder2Offset)
                 .withMechanismRange(kMinRange, kMaxRange)
                 .withMatchTolerance(Degrees.of(kTolerance)));
-
-    initialized = false;
-    disabled = true;
 
     manual = true; // FOR TESTING ONLY
   }
@@ -311,7 +315,7 @@ public final class Turret extends SubsystemBase {
       crt.getAngleOptional().ifPresent(this::estimateTurretAngle);
     }
 
-    if (disabled) {
+    if (!enabled) {
       motor.stopMotor();
     } else if (initialized) {
       if (manual) {
@@ -342,7 +346,7 @@ public final class Turret extends SubsystemBase {
   public Command disable() {
     return runOnce(
             () -> {
-              disabled = true;
+              enabled = false;
             })
         .withName("TurretDisable");
   }
@@ -351,7 +355,7 @@ public final class Turret extends SubsystemBase {
   public Command enable() {
     return runOnce(
             () -> {
-              disabled = false;
+              enabled = true;
             })
         .withName("TurretEnable");
   }

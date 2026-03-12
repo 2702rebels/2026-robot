@@ -2,7 +2,7 @@ package frc.robot.lib;
 
 import static edu.wpi.first.units.Units.Amps;
 import static edu.wpi.first.units.Units.Celsius;
-import static edu.wpi.first.units.Units.Volts;
+import static edu.wpi.first.units.Units.RPM;
 
 import com.ctre.phoenix6.CANBus;
 import com.ctre.phoenix6.StatusSignal;
@@ -14,18 +14,21 @@ import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.units.measure.Current;
 import edu.wpi.first.units.measure.Temperature;
-import edu.wpi.first.units.measure.Voltage;
 import java.util.function.Consumer;
 
 public class LoggedTalonFXS extends TalonFXS {
   private final StatusSignal<Temperature> temperatureSignal;
-  private final StatusSignal<Voltage> motorVoltageSignal;
+  private final StatusSignal<Double> dutyCycleSignal;
   private final StatusSignal<Current> supplyCurrentSignal;
-  private final StatusSignal<Current> statorCurrentSignal;
+  private final StatusSignal<Current> torqueCurrentSignal;
   private final StatusSignal<Angle> positionSignal;
   private final StatusSignal<AngularVelocity> velocitySignal;
   private final StatusSignal<Double> closedLoopReferenceSignal;
   private final StatusSignal<Double> closedLoopReferenceSlopeSignal;
+  private final double statorCurrentLimit;
+
+  private static final double kFastUpdateFrequencyHz = 250.0;
+  private static final double kSlowUpdateFrequencyHz = 50.0;
 
   public LoggedTalonFXS(int deviceId, CANBus canbus) {
     this(deviceId, canbus, null);
@@ -44,25 +47,49 @@ public class LoggedTalonFXS extends TalonFXS {
 
     PhoenixUtil.config(this, config);
 
+    // retain stator current to use in stall condition detection
+    if (config.CurrentLimits.StatorCurrentLimitEnable) {
+      statorCurrentLimit = config.CurrentLimits.StatorCurrentLimit;
+    } else {
+      throw new Error(
+          "StatorCurrentLimit is not enabled for device with ID "
+              + deviceId
+              + " ("
+              + getDescription()
+              + ")");
+    }
+
+    // NOTE: it is important to register ALL signals that may be required for leader/follower
+    // control with appropriate update frequencies, since `optimizeBusUtilization` call will
+    // reduce all signals without explicit update frequency to 4Hz
+
     temperatureSignal = getDeviceTemp();
-    motorVoltageSignal = getMotorVoltage();
     supplyCurrentSignal = getSupplyCurrent();
-    statorCurrentSignal = getStatorCurrent();
-    positionSignal = getPosition();
-    velocitySignal = getVelocity();
     closedLoopReferenceSignal = getClosedLoopReference();
     closedLoopReferenceSlopeSignal = getClosedLoopReferenceSlope();
 
     PhoenixUtil.registerSignals(
         this,
+        kSlowUpdateFrequencyHz,
         temperatureSignal,
-        motorVoltageSignal,
         supplyCurrentSignal,
-        statorCurrentSignal,
-        positionSignal,
-        velocitySignal,
         closedLoopReferenceSignal,
         closedLoopReferenceSlopeSignal);
+
+    dutyCycleSignal = getDutyCycle();
+    torqueCurrentSignal = getTorqueCurrent();
+    positionSignal = getPosition();
+    velocitySignal = getVelocity();
+
+    PhoenixUtil.registerSignals(
+        this,
+        kFastUpdateFrequencyHz,
+        dutyCycleSignal,
+        torqueCurrentSignal,
+        positionSignal,
+        velocitySignal);
+
+    PhoenixUtil.optimizeBusUtilization(this);
   }
 
   protected void configure(TalonFXSConfiguration config) {}
@@ -72,14 +99,14 @@ public class LoggedTalonFXS extends TalonFXS {
     return temperatureSignal.getValue().in(Celsius);
   }
 
-  @Logged(name = "AppliedVolts", importance = Importance.DEBUG)
-  public double getAppliedVolts() {
-    return motorVoltageSignal.getValue().in(Volts);
+  @Logged(name = "DutyCycle", importance = Importance.DEBUG)
+  public double getMotorDutyCycle() {
+    return dutyCycleSignal.getValue();
   }
 
-  @Logged(name = "StatorCurrentAmps", importance = Importance.INFO)
-  public double getStatorCurrentAmps() {
-    return statorCurrentSignal.getValue().in(Amps);
+  @Logged(name = "TorqueCurrentAmps", importance = Importance.INFO)
+  public double getTorqueCurrentAmps() {
+    return torqueCurrentSignal.getValue().in(Amps);
   }
 
   @Logged(name = "SupplyCurrentAmps", importance = Importance.INFO)
@@ -105,5 +132,17 @@ public class LoggedTalonFXS extends TalonFXS {
   @Logged(name = "MotorClosedLoopReferenceSlope", importance = Importance.DEBUG)
   public double getMotorClosedLoopReferenceSlope() {
     return closedLoopReferenceSlopeSignal.getValue();
+  }
+
+  /** Detects stall condition of the motor. */
+  public boolean isStalled() {
+    return Math.abs(getTorqueCurrentAmps()) > statorCurrentLimit * 0.9
+        && Math.abs(getMotorVelocity().in(RPM)) < 6;
+  }
+
+  /** Detects stall condition of the motor given the current limit. */
+  public boolean isStalled(double currentLimitAmps) {
+    return Math.abs(getTorqueCurrentAmps()) > currentLimitAmps
+        && Math.abs(getMotorVelocity().in(RPM)) < 6;
   }
 }

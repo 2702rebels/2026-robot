@@ -16,6 +16,9 @@ public final class PhoenixUtil {
   private static final Alert deviceInitFailure =
       new Alert("CTRE: device initialization error", AlertType.kError);
 
+  // default signal update frequency
+  private static final double kUpdateFrequencyHz = 100.0;
+
   private PhoenixUtil() {
     throw new AssertionError();
   }
@@ -30,30 +33,56 @@ public final class PhoenixUtil {
     registeredSignals = newSignals;
   }
 
+  /** Optimizes CAN bus utilization. */
+  public static void optimizeBusUtilization(TalonFX talonFX) {
+    run("OptimizeBusUtilization", talonFX.getDeviceID(), () -> talonFX.optimizeBusUtilization());
+  }
+
   /**
-   * Registers a set of CANivore signals for a synchronized refresh, sets update frequency and
-   * optimizes CAN bus utilization for the device.
+   * Registers a set of CANivore signals for a synchronized refresh with the specified update
+   * frequency for the device.
    */
-  public static void registerSignals(TalonFX talonFX, BaseStatusSignal... signals) {
+  public static void registerSignals(
+      TalonFX talonFX, double updateFrequencyHz, BaseStatusSignal... signals) {
     run(
         "SetSignalsUpdateFrequency",
         talonFX.getDeviceID(),
-        () -> BaseStatusSignal.setUpdateFrequencyForAll(50, signals));
-    run("OptimizeBusUtilization", talonFX.getDeviceID(), () -> talonFX.optimizeBusUtilization());
+        () -> BaseStatusSignal.setUpdateFrequencyForAll(updateFrequencyHz, signals));
     registerSignals(signals);
   }
 
   /**
-   * Registers a set of CANivore signals for a synchronized refresh, sets update frequency and
-   * optimizes CAN bus utilization for the device.
+   * Registers a set of CANivore signals for a synchronized refresh with the default update
+   * frequency for the device.
    */
-  public static void registerSignals(TalonFXS talonFXS, BaseStatusSignal... signals) {
+  public static void registerSignals(TalonFX talonFX, BaseStatusSignal... signals) {
+    registerSignals(talonFX, kUpdateFrequencyHz, signals);
+  }
+
+  /** Optimizes CAN bus utilization. */
+  public static void optimizeBusUtilization(TalonFXS talonFXS) {
+    run("OptimizeBusUtilization", talonFXS.getDeviceID(), () -> talonFXS.optimizeBusUtilization());
+  }
+
+  /**
+   * Registers a set of CANivore signals for a synchronized refresh with the specified update
+   * frequency for the device.
+   */
+  public static void registerSignals(
+      TalonFXS talonFXS, double updateFrequencyHz, BaseStatusSignal... signals) {
     run(
         "SetSignalsUpdateFrequency",
         talonFXS.getDeviceID(),
-        () -> BaseStatusSignal.setUpdateFrequencyForAll(50, signals));
-    run("OptimizeBusUtilization", talonFXS.getDeviceID(), () -> talonFXS.optimizeBusUtilization());
+        () -> BaseStatusSignal.setUpdateFrequencyForAll(updateFrequencyHz, signals));
     registerSignals(signals);
+  }
+
+  /**
+   * Registers a set of CANivore signals for a synchronized refresh with the default update
+   * frequency for the device.
+   */
+  public static void registerSignals(TalonFXS talonFXS, BaseStatusSignal... signals) {
+    registerSignals(talonFXS, kUpdateFrequencyHz, signals);
   }
 
   /** Refreshes all registered signals. Must be invoked from robot periodic. */
