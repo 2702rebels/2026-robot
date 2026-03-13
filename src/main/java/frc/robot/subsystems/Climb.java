@@ -14,34 +14,33 @@ import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.units.measure.Distance;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
+import edu.wpi.first.wpilibj2.command.ScheduleCommand;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 import frc.robot.lib.CANduit;
 import frc.robot.lib.LoggedTalonFXS;
-import frc.robot.lib.PhoenixUtil;
 import frc.robot.lib.Tunable;
 
 public final class Climb extends SubsystemBase {
   // MAKE SURE TO UPDATE THESE VALUES AFTER TUNING
   // DO NOT USE THESE VALUES DIRECTLY IN PERIODIC CODE,
   // USE THEM TO INITIALIZE TUNABLE VALUES AND CONTROLLERS
-  private static final double __kS = 0;
   private static final double __kP = 5;
   private static final double __kD = 0;
 
-  private static final double __kSd = 0;
   private static final double __kPd = 3;
   private static final double __kDd = 0;
 
-  private static final double __kPositionExtended = 8;
-  private static final double __kPositionClimbed = 2;
+  private static final double __kPositionExtended = 8.0; // inches
+  private static final double __kPositionEngaged = 2.0;
   private static final double __kPositionRetracted = 0;
   private static final double __kPositionManual = 0;
 
-  private static final double kConversionFactor =
-      36.0 / (Math.PI * 2.73); // 2.73 is effective spool diameter in inches
+  // 2.73 is effective spool diameter in inches
+  private static final double kConversionFactor = 36.0 / (Math.PI * 2.73);
 
-  // profile for lowering the robot
+  // motion profile for lowering the robot
   private static final double __kMaxVelocity = kConversionFactor * 6.0; // rot/sec (6 in/sec)
   private static final double __kMaxAcceleration =
       __kMaxVelocity / 0.2; // rot/sec^2 (200ms to max velocity)
@@ -60,13 +59,15 @@ public final class Climb extends SubsystemBase {
   @Logged(name = "Enabled", importance = Importance.INFO)
   private boolean enabled = true;
 
-  // indicates that the subsystem has been initialized by zeroing the position of the hood
+  // indicates that the subsystem has been initialized by zeroing the position of the climb
   private boolean initialized = false;
-  private boolean climbed = false;
-  private boolean lowering = false;
+
+  // indicates that the robot has attempted to climb/climbed and should be lowered in a controlled
+  // manner
+  private boolean engaged = false;
 
   private static final double kStatorCurrentLimit = 100.0;
-  private static final double kTolerance = 0.5;
+  private static final double kTolerance = 0.5; // inches
 
   // manual mode used for testing
   private boolean manual;
@@ -85,11 +86,9 @@ public final class Climb extends SubsystemBase {
               config.MotorOutput.Inverted = InvertedValue.Clockwise_Positive;
               config.MotorOutput.ControlTimesyncFreqHz = 100;
 
-              config.Slot0.kS = __kS;
               config.Slot0.kP = __kP;
               config.Slot0.kD = __kD;
 
-              config.Slot1.kS = __kSd;
               config.Slot1.kP = __kPd;
               config.Slot1.kD = __kDd;
 
@@ -103,6 +102,7 @@ public final class Climb extends SubsystemBase {
             .withUseTimesync(true)
             .withUpdateFreqHz(0)
             .withEnableFOC(true);
+
     controlLower =
         new MotionMagicVoltage(0)
             .withSlot(1)
@@ -117,12 +117,7 @@ public final class Climb extends SubsystemBase {
 
     sensor = canduit.createPWMInput(Constants.CANduitID.CLIMB_SENSOR);
 
-    reset();
     // manual = true; // FOR TESTING ONLY
-  }
-
-  private void reset() {
-    PhoenixUtil.run("Climb Zero", motor.getDeviceID(), () -> motor.setPosition(0));
   }
 
   /**
@@ -144,21 +139,33 @@ public final class Climb extends SubsystemBase {
       motor.set(-0.05);
 
       // climb is zeroed against a hard stop
+      //
+      // note that since we typically require very high stator current for actual climb,
+      // we use much lower threhsold here to detect stall during initialization sequence
       if (motor.isStalled(10)) {
         motor.stopMotor();
-        reset();
+        motor.resetPosition(0);
         initialized = true;
       }
-    } else if (!enabled) {
-      motor.stopMotor();
     } else {
-      if (manual) {
-        setpoint = Inches.of(kPositionManual.get());
-      }
+      if (enabled) {
+        if (manual) {
+          setpoint = Inches.of(kPositionManual.get());
+        }
 
-      final var rotations = setpoint.in(Inches) * kConversionFactor;
-      motor.setControl(
-          lowering ? controlLower.withPosition(rotations) : control.withPosition(rotations));
+        // use profiled motion if the climb is engaged to lower the robot
+        // otherwise, use simple PID to jump to the setpoint
+        final var position = setpoint.in(Inches) * kConversionFactor;
+        motor.setControl(
+            engaged ? controlLower.withPosition(position) : control.withPosition(position));
+      } else {
+        motor.stopMotor();
+      }
+    }
+
+    // reset "engaged" flag once the hook is fully extended
+    if (engaged && getPosition().in(Inches) >= kPositionExtended.get() - kTolerance) {
+      engaged = false;
     }
   }
 
@@ -185,14 +192,14 @@ public final class Climb extends SubsystemBase {
     return initialized;
   }
 
-  @Logged(name = "Extended", importance = Importance.INFO)
-  public boolean isExtended() {
+  @Logged(name = "Ready", importance = Importance.INFO)
+  public boolean isReady() {
     return MathUtil.isNear(kPositionExtended.get(), getPosition().in(Inches), kTolerance);
   }
 
-  @Logged(name = "Climbed", importance = Importance.INFO)
-  public boolean isClimbed() {
-    return climbed;
+  @Logged(name = "Engaged", importance = Importance.INFO)
+  public boolean isEngaged() {
+    return engaged;
   }
 
   /** Disables the subsystem. */
@@ -213,52 +220,62 @@ public final class Climb extends SubsystemBase {
         .withName("ClimbEnable");
   }
 
-  /** Extends the climb. */
+  /** Extends the hook. */
   public Command extend() {
     return runOnce(
             () -> {
-              this.lowering = false;
               this.setpoint = Inches.of(kPositionExtended.get());
             })
         .withName("ClimbExtend");
   }
 
-  /** Retracts the climb. */
+  /** Retracts the hook. */
   public Command retract() {
     return runOnce(
             () -> {
-              this.lowering = false;
               this.setpoint = Inches.of(kPositionRetracted.get());
             })
         .withName("ClimbRetract");
   }
 
-  /** Engages by climbing to the pre-defined position. */
+  /** Engages the climb by rapdidly retracting the hook to a pre-defined position. */
   public Command engage() {
     return runOnce(
             () -> {
-              this.lowering = false;
-              this.climbed = true;
-              this.setpoint = Inches.of(kPositionClimbed.get());
+              this.engaged = true;
+              this.setpoint = Inches.of(kPositionEngaged.get());
             })
         .withName("ClimbEngage");
   }
 
-  /** Disengages by lowering the robot to the ground. */
+  /** Disengages the climb by lowering the robot to the ground in a controllable manner. */
   public Command disengage() {
     return runOnce(
             () -> {
-              this.lowering = true;
-              this.climbed = false;
               this.setpoint = Inches.of(kPositionExtended.get());
             })
-        .withName("ClimbDisengage");
+        .withName("ClimbDisengage")
+        // a "hack" that resets the "engaged" flag after a timeout in case we never fully
+        // reached the setpoint somehow, note that we do not require this subsystem in
+        // the command being scheduled
+        //
+        // this way we can quickly extend/retract the hook manually, however it opens up
+        // a possibility of a race, if the climb is re-engaged in the meantime,
+        // yet this specific scenario is extremely rare in practice
+        .andThen(
+            new ScheduleCommand(
+                Commands.sequence(
+                    Commands.waitSeconds(2),
+                    Commands.runOnce(
+                        () -> {
+                          this.engaged = false;
+                        }))));
   }
 
   // spotless:off
   private static Tunable.DoubleValue kPositionExtended = Tunable.value("Climb/Extended", __kPositionExtended);
   private static Tunable.DoubleValue kPositionRetracted = Tunable.value("Climb/Retracted", __kPositionRetracted);
-  private static Tunable.DoubleValue kPositionClimbed = Tunable.value("Climb/Climbed", __kPositionClimbed);
+  private static Tunable.DoubleValue kPositionEngaged = Tunable.value("Climb/Engaged", __kPositionEngaged);
   private static Tunable.DoubleValue kPositionManual = Tunable.value("Climb/Manual", __kPositionManual);
   // spotless:on
 }

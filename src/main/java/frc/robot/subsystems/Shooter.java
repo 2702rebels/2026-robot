@@ -148,7 +148,6 @@ public final class Shooter extends SubsystemBase {
     Tunable.bind("Flywheel", flywheelMotorLeader);
     Tunable.bind("Hood", hoodMotor);
 
-    reset();
     manual = true; // FOR TESTING ONLY
   }
 
@@ -161,31 +160,29 @@ public final class Shooter extends SubsystemBase {
       // hood is zeroed against a hard stop
       if (hoodMotor.isStalled()) {
         hoodMotor.stopMotor();
-        reset();
+        hoodMotor.resetPosition(0);
         initialized = true;
       }
-    } else if (!enabled) {
-      flywheelMotorLeader.stopMotor();
-      hoodMotor.stopMotor();
     } else {
-      if (manual) {
-        flywheelSetpoint = kFlywheelManual.get();
-        hoodSetpoint = Degrees.of(kHoodManual.get());
+      if (enabled) {
+        if (manual) {
+          flywheelSetpoint = kFlywheelManual.get();
+          hoodSetpoint = Degrees.of(kHoodManual.get());
+        }
+
+        flywheelMotorLeader.setControl(
+            flywheelControl.withVelocity(
+                RotationsPerSecond.convertFrom(flywheelSetpoint, RPM) * kFlywheelConversionFactor));
+
+        final var hoodSetpointActual = hoodParked ? Degrees.of(kHoodParkAngle.get()) : hoodSetpoint;
+
+        hoodMotor.setControl(
+            hoodControl.withPosition(hoodSetpointActual.in(Rotations) * kHoodConversionFactor));
+      } else {
+        flywheelMotorLeader.stopMotor();
+        hoodMotor.stopMotor();
       }
-
-      flywheelMotorLeader.setControl(
-          flywheelControl.withVelocity(
-              RotationsPerSecond.convertFrom(flywheelSetpoint, RPM) * kFlywheelConversionFactor));
-
-      final var hoodSetpointActual = hoodParked ? Degrees.of(kHoodParkAngle.get()) : hoodSetpoint;
-
-      hoodMotor.setControl(
-          hoodControl.withPosition(hoodSetpointActual.in(Rotations) * kHoodConversionFactor));
     }
-  }
-
-  private void reset() {
-    PhoenixUtil.run("Shooter Hood Zero", hoodMotor.getDeviceID(), () -> hoodMotor.setPosition(0));
   }
 
   private void setAngle(Angle value) {

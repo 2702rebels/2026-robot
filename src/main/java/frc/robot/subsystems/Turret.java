@@ -19,7 +19,6 @@ import frc.robot.lib.EasyCRT;
 import frc.robot.lib.EasyCRT.CRTStatus;
 import frc.robot.lib.EasyCRTConfig;
 import frc.robot.lib.LoggedTalonFX;
-import frc.robot.lib.PhoenixUtil;
 import frc.robot.lib.Tunable;
 import java.util.Optional;
 
@@ -111,6 +110,9 @@ public final class Turret extends SubsystemBase {
     return value.in(Rotations) * kConversionFactor;
   }
 
+  // duty-cycle used to run initialization sequence
+  private double initDutyCycle = 0.05;
+
   public Turret(CANBus canbus, CANduit canduit) {
     motor =
         new LoggedTalonFX(
@@ -164,6 +166,9 @@ public final class Turret extends SubsystemBase {
                 .withMatchTolerance(Degrees.of(kTolerance)));
 
     manual = true; // FOR TESTING ONLY
+
+    // adjust initialization direction based on presumed position
+    initDutyCycle *= (getPosition().in(Degrees) >= 0 ? -1 : 1);
   }
 
   /**
@@ -262,11 +267,7 @@ public final class Turret extends SubsystemBase {
 
       // reset turret motor position to the derived angle when the offset stabilizes
       if (!initialized && stdev < 2 * kTolerance && Math.abs(mean) > kTolerance) {
-        PhoenixUtil.run(
-            "Turret Position Init",
-            motor.getDeviceID(),
-            () -> motor.setPosition(toMotorPosition(crtAngle)));
-
+        motor.resetPosition(toMotorPosition(crtAngle));
         initialized = true;
       }
     }
@@ -371,7 +372,9 @@ public final class Turret extends SubsystemBase {
 
   /** Initializes turret position. */
   public Command initialize() {
-    return run(() -> motor.set(0.05)).until(this::isInitialized).withTimeout(Seconds.of(5));
+    return run(() -> motor.set(initDutyCycle))
+        .until(this::isInitialized)
+        .withTimeout(Seconds.of(5));
   }
 
   /** Determines whether initialization sequence should be run. */

@@ -139,4 +139,15 @@ public class LoggedTalonFX extends TalonFX {
     return Math.abs(getTorqueCurrentAmps()) > statorCurrentLimit * 0.9
         && Math.abs(getMotorVelocity().in(RPM)) < 6;
   }
+
+  /** Detects stall condition of the motor given the current limit. */
+  public boolean isStalled(double currentLimitAmps) {
+    return Math.abs(getTorqueCurrentAmps()) > currentLimitAmps
+        && Math.abs(getMotorVelocity().in(RPM)) < 6;
+  }
+
+  /** Resets motor position. Note, that this is a blocking call and should be invoked sparingly. */
+  public void resetPosition(double position) {
+    PhoenixUtil.run("Reset Position", getDeviceID(), () -> setPosition(position));
+  }
 }

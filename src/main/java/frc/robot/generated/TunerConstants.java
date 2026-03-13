@@ -69,13 +69,13 @@ public class TunerConstants {
   private static final ClosedLoopOutputType kDriveClosedLoopOutput =
       ClosedLoopOutputType.TorqueCurrentFOC;
 
-  // The type of motor used for the drive motor
-  private static final DriveMotorArrangement kDriveMotorType =
-      DriveMotorArrangement.TalonFX_Integrated;
-
   private static final SteerMotorArrangement kSteerMotorType =
       // The type of motor used for the drive motor
       SteerMotorArrangement.TalonFXS_NEO550_JST;
+
+  // The type of motor used for the drive motor
+  private static final DriveMotorArrangement kDriveMotorType =
+      DriveMotorArrangement.TalonFX_Integrated;
 
   // The remote sensor feedback type to use for the steer motors;
   // When not Pro-licensed, Fused*/Sync* automatically fall back to Remote*

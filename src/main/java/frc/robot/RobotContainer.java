@@ -157,11 +157,11 @@ public class RobotContainer {
     resetIntentButton.onTrue(
         Commands.parallel(intake.disable(), hopper.disable(), turret.disable(), shooter.disable()));
 
-    controllerDriver.povUp().and(() -> !climb.isClimbed()).onTrue(climb.extend());
-    controllerDriver.povDown().and(() -> !climb.isClimbed()).onTrue(climb.retract());
+    controllerDriver.povUp().and(() -> !climb.isEngaged()).onTrue(climb.extend());
+    controllerDriver.povDown().and(() -> !climb.isEngaged()).onTrue(climb.retract());
 
-    controllerDriver.leftBumper().and(climb::isExtended).onTrue(climb.engage());
-    controllerDriver.x().and(climb::isClimbed).onTrue(climb.disengage());
+    controllerDriver.leftBumper().and(climb::isReady).onTrue(climb.engage());
+    controllerDriver.x().and(climb::isEngaged).onTrue(climb.disengage());
 
     // controllerDriver.y().onTrue();
     // controllerDriver.b().onTrue(intake.enable().andThen(intake.deploy()));

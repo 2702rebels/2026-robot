@@ -145,4 +145,9 @@ public class LoggedTalonFXS extends TalonFXS {
     return Math.abs(getTorqueCurrentAmps()) > currentLimitAmps
         && Math.abs(getMotorVelocity().in(RPM)) < 6;
   }
+
+  /** Resets motor position. Note, that this is a blocking call and should be invoked sparingly. */
+  public void resetPosition(double position) {
+    PhoenixUtil.run("Reset Position", getDeviceID(), () -> setPosition(position));
+  }
 }
