@@ -165,8 +165,12 @@ public final class Climb extends SubsystemBase {
     }
 
     // reset "engaged" flag once the hook is fully extended
-    if (engaged && getPosition().in(Inches) >= kPositionExtended.get() - kTolerance) {
-      engaged = false;
+    if (engaged) {
+      final var positionExtended = kPositionExtended.get();
+      if (MathUtil.isNear(setpoint.in(Inches), positionExtended, kTolerance)
+          && getPosition().in(Inches) >= positionExtended - kTolerance) {
+        engaged = false;
+      }
     }
   }
 
@@ -225,7 +229,7 @@ public final class Climb extends SubsystemBase {
   public Command extend() {
     return runOnce(
             () -> {
-              this.setpoint = Inches.of(kPositionExtended.get());
+              setpoint = Inches.of(kPositionExtended.get());
             })
         .withName("ClimbExtend");
   }
@@ -234,7 +238,7 @@ public final class Climb extends SubsystemBase {
   public Command retract() {
     return runOnce(
             () -> {
-              this.setpoint = Inches.of(kPositionRetracted.get());
+              setpoint = Inches.of(kPositionRetracted.get());
             })
         .withName("ClimbRetract");
   }
@@ -243,8 +247,8 @@ public final class Climb extends SubsystemBase {
   public Command engage() {
     return runOnce(
             () -> {
-              this.engaged = true;
-              this.setpoint = Inches.of(kPositionEngaged.get());
+              engaged = true;
+              setpoint = Inches.of(kPositionEngaged.get());
             })
         .withName("ClimbEngage");
   }
@@ -253,7 +257,7 @@ public final class Climb extends SubsystemBase {
   public Command disengage() {
     return runOnce(
             () -> {
-              this.setpoint = Inches.of(kPositionExtended.get());
+              setpoint = Inches.of(kPositionExtended.get());
             })
         .withName("ClimbDisengage")
         // a "hack" that resets the "engaged" flag after a timeout in case we never fully
@@ -269,7 +273,7 @@ public final class Climb extends SubsystemBase {
                     Commands.waitSeconds(2),
                     Commands.runOnce(
                         () -> {
-                          this.engaged = false;
+                          engaged = false;
                         }))));
   }
 
