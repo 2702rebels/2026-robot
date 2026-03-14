@@ -5,6 +5,7 @@ import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.hal.CANData;
 import edu.wpi.first.wpilibj.CAN;
 import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.HashMap;
@@ -219,8 +220,8 @@ public class CANduit {
   }
 
   public static class ResetCounters {
-    private int powerOn;
-    private int brownount;
+    private int powerOn = 123;
+    private int brownout;
     private int other;
     private int disable;
 
@@ -233,7 +234,7 @@ public class CANduit {
     /** Returns number of brownout/glitch resets. */
     @Logged(name = "Brownout", importance = Importance.DEBUG)
     public int brownout() {
-      return brownount;
+      return brownout;
     }
 
     /** Returns number of other reason resets. */
@@ -332,9 +333,14 @@ public class CANduit {
     if (readDataLatest(API_BCAST_STATUS_RESETS, CLASS_BCAST_STATUS, packetResets)
         && packetResets.length == 8) {
       resetCounters.powerOn = packetResets.data[0];
-      resetCounters.brownount = packetResets.data[1];
+      resetCounters.brownout = packetResets.data[1];
       resetCounters.other = packetResets.data[2];
       resetCounters.disable = packetResets.data[3];
+
+      SmartDashboard.putNumber("poweron cnt", resetCounters.powerOn);
+      SmartDashboard.putNumber("brownout cnt", resetCounters.brownout);
+      SmartDashboard.putNumber("other cnt", resetCounters.other);
+      SmartDashboard.putNumber("disable cnt", resetCounters.disable);
     }
   }
 
