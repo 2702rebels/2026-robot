@@ -8,9 +8,11 @@ import com.ctre.phoenix6.signals.NeutralModeValue;
 import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.math.Pair;
 import edu.wpi.first.math.filter.MedianFilter;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.util.CircularBuffer;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
@@ -90,6 +92,11 @@ public final class Turret extends SubsystemBase {
   private static final double kMinPosition = -150.0; // degrees
   private static final double kMaxPosition = 180.0; // degrees
   private static final double kTolerance = 1.0; // degrees
+  //  218/19 = 323
+  private static final double kScale = 323.0 / ((19 - 17) * kTurretTeeth);
+  private static final double kAcceptableError = 0.18; // Threshold determined through observation
+
+  private static int lastUsedEncoder = 1;
 
   // Expo kV and kA characterize the profile not gains
   // https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/motion-magic.html#motion-magic-expo
@@ -273,6 +280,68 @@ public final class Turret extends SubsystemBase {
       }
     }
   }
+
+  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  //   MOD - based CRT code
+
+  private static Angle mod(Angle x) {
+    return Rotations.of(MathUtil.inputModulus(x.in(Rotations), 0, 1));
+  }
+
+  private static Pair<Angle, Double> CalculateAngleAndError(Angle encoder1, Angle encoder2) {
+    Angle rotation = mod(encoder1.minus(encoder2)).times(kScale);
+    Angle e1c = mod(rotation.times(kEncoder1Ratio));
+    Angle e2c = mod(rotation.times(kEncoder2Ratio));
+
+    final Angle halfRotation = Rotations.of(0.5); // Make halfRotation global XXX
+    Angle err1 = mod(e1c.minus(encoder1).plus(halfRotation)).minus(halfRotation);
+    Angle err2 = mod(e2c.minus(encoder2).plus(halfRotation)).minus(halfRotation);
+
+    // Return the magnitude of error by taking sqrt of sum of squares
+    return Pair.of(
+        rotation, Math.sqrt(Math.pow(err1.magnitude(), 2) + Math.pow(err2.magnitude(), 2)));
+  }
+
+  // This is a drop in replacement for getEstimatedTurretAngle()
+  private static Angle getTurretRotation(Angle encoder1, Angle encoder2) {
+    encoder1 =
+        mod(encoder1.minus(kEncoder1Offset).plus(Rotation.of(0.5))); // Offset and shift by 180 deg
+    encoder2 =
+        mod(
+            encoder2
+                .minus(kEncoder2Offset)
+                .plus(Rotation.of(0.5))); // Switch to use 'halfRotation' -XXX
+    // When x is the turret rotation, encoder1 is 218x/17 and encoder2 is 218x/19
+    // Difference between encoders = 218x/17 - 218x/19 = 436x/323
+    // Therefore, turret rotation can be derived from encoder difference as x = 323 * (encoder1 -
+    // encoder2) / 436
+    Pair<Angle, Double> calcRotation1 = CalculateAngleAndError(encoder1, encoder2);
+    SmartDashboard.putNumber("calcRot1", calcRotation1.getFirst().in(Rotations));
+    SmartDashboard.putNumber("error1", calcRotation1.getSecond());
+    // final Angle halfRotation = Angle.ofBaseUnits(0.5, Rotations);
+    final Angle halfRotation = Rotations.of(0.5);
+
+    Pair<Angle, Double> calcRotation2 =
+        CalculateAngleAndError(mod(encoder1.plus(halfRotation)), mod(encoder2.plus(halfRotation)));
+
+    calcRotation2 =
+        new Pair<>(calcRotation2.getFirst().plus(Rotations.of(kScale)), calcRotation2.getSecond());
+    SmartDashboard.putNumber("calcRot2", calcRotation2.getFirst().in(Rotations));
+    SmartDashboard.putNumber("error2", calcRotation2.getSecond());
+    double minError = Math.min(calcRotation1.getSecond(), calcRotation2.getSecond());
+    if (minError > kAcceptableError) {
+      return lastUsedEncoder == 1 ? calcRotation1.getFirst() : calcRotation2.getFirst();
+    }
+    if (calcRotation1.getSecond() < calcRotation2.getSecond()) {
+      lastUsedEncoder = 1;
+      return calcRotation1.getFirst();
+    } else {
+      lastUsedEncoder = 2;
+      return calcRotation2.getFirst();
+    }
+  }
+
+  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   @Logged(name = "Encoder1/Angle", importance = Importance.INFO)
   public Angle getEncoder1Angle() {
