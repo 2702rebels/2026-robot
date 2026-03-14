@@ -1,6 +1,9 @@
 package frc.robot.subsystems;
 
-import static edu.wpi.first.units.Units.*;
+import static edu.wpi.first.units.Units.Degrees;
+import static edu.wpi.first.units.Units.RPM;
+import static edu.wpi.first.units.Units.Rotations;
+import static edu.wpi.first.units.Units.RotationsPerSecond;
 
 import com.ctre.phoenix6.CANBus;
 import com.ctre.phoenix6.controls.Follower;
@@ -9,6 +12,7 @@ import com.ctre.phoenix6.controls.VelocityTorqueCurrentFOC;
 import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.MotorAlignmentValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
+import com.ctre.phoenix6.signals.StaticFeedforwardSignValue;
 import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.math.MathUtil;
@@ -30,11 +34,11 @@ public final class Shooter extends SubsystemBase {
   private static final double __kFlywheelP = 10;
   private static final double __kFlywheelD = 0;
   private static final double __kHoodG = 0;
-  private static final double __kHoodS = 0;
-  private static final double __kHoodP = 2;
-  private static final double __kHoodD = 0;
+  private static final double __kHoodS = 0.5;
+  private static final double __kHoodP = 3;
+  private static final double __kHoodD = 0.2;
 
-  private static final double __kHoodParkAngle = 5;
+  private static final double __kHoodParkAngle = 10;
 
   private static final double __kHoodManual = 15;
   private static final double __kFlywheelManual = 4000; // RPMs
@@ -72,13 +76,18 @@ public final class Shooter extends SubsystemBase {
   private static final double kHoodStatorCurrentLimit = 20.0;
 
   private static final double kHoodPositionMin = 0.0; // degrees
-  private static final double KHoodPositionMax = 33.0; // degrees
+  private static final double KHoodPositionMax = 30.0; // degrees
   private static final double kHoodPositionTolerance = 0.5; // degrees
   private static final double kHoodConversionFactor = 108.0;
 
   private static final double kFlywheelVelocityMax = 6500.0;
   private static final double kFlywheelVelocityTolerance = 50.0; // RPMs
   private static final double kFlywheelConversionFactor = 15.0 / 18.0;
+
+  /** Convert hood angular position to motor position in rotations. */
+  private static double toHoodMotorPosition(Angle value) {
+    return value.in(Rotations) * kHoodConversionFactor;
+  }
 
   public Shooter(CANBus canbus) {
     flywheelMotorLeader =
@@ -123,6 +132,7 @@ public final class Shooter extends SubsystemBase {
               config.Slot0.kS = __kHoodS;
               config.Slot0.kP = __kHoodP;
               config.Slot0.kD = __kHoodD;
+              config.Slot0.StaticFeedforwardSign = StaticFeedforwardSignValue.UseClosedLoopSign;
             });
 
     // follow leader's output (inverted)
@@ -139,7 +149,7 @@ public final class Shooter extends SubsystemBase {
         new VelocityTorqueCurrentFOC(0).withSlot(0).withUseTimesync(true).withUpdateFreqHz(0);
 
     hoodControl =
-        new PositionTorqueCurrentFOC(KHoodPositionMax * kHoodConversionFactor)
+        new PositionTorqueCurrentFOC(toHoodMotorPosition(Degrees.of(KHoodPositionMax)))
             .withSlot(0)
             .withUseTimesync(true)
             .withUpdateFreqHz(0);
@@ -176,8 +186,7 @@ public final class Shooter extends SubsystemBase {
 
         final var hoodSetpointActual = hoodParked ? Degrees.of(kHoodParkAngle.get()) : hoodSetpoint;
 
-        hoodMotor.setControl(
-            hoodControl.withPosition(hoodSetpointActual.in(Rotations) * kHoodConversionFactor));
+        hoodMotor.setControl(hoodControl.withPosition(toHoodMotorPosition(hoodSetpointActual)));
       } else {
         flywheelMotorLeader.stopMotor();
         hoodMotor.stopMotor();

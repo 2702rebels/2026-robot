@@ -8,7 +8,7 @@ import com.ctre.phoenix6.signals.NeutralModeValue;
 import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.math.MathUtil;
-import edu.wpi.first.math.filter.LinearFilter;
+import edu.wpi.first.math.filter.MedianFilter;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.util.CircularBuffer;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -58,8 +58,8 @@ public final class Turret extends SubsystemBase {
   private static final int kOffsetEstimatorSize = 10;
   private final CircularBuffer<Double> offsetEstimator = new CircularBuffer<>(kOffsetEstimatorSize);
 
-  private final LinearFilter encoder1Filter = LinearFilter.movingAverage(5);
-  private final LinearFilter encoder2Filter = LinearFilter.movingAverage(5);
+  private final MedianFilter encoder1Filter = new MedianFilter(5);
+  private final MedianFilter encoder2Filter = new MedianFilter(5);
 
   private final MotionMagicExpoTorqueCurrentFOC control;
 
@@ -87,8 +87,8 @@ public final class Turret extends SubsystemBase {
 
   private static final double kStatorCurrentLimit = 60.0;
   private static final double kConversionFactor = kTurretTeeth * 3.0 / 22.0;
-  private static final double kMinPosition = -140.0; // degrees
-  private static final double kMaxPosition = 120.0; // degrees
+  private static final double kMinPosition = -150.0; // degrees
+  private static final double kMaxPosition = 180.0; // degrees
   private static final double kTolerance = 1.0; // degrees
 
   // Expo kV and kA characterize the profile not gains
@@ -185,8 +185,9 @@ public final class Turret extends SubsystemBase {
     //
     // below formula seems to handle both situations reasonably well
 
-    final double v = encoder.getPulseWidth();
-    final double p = Math.min(encoder.getPeriod(), 1025000); // nanoseconds
+    // subtract min pulse width from period/pulse width to get range starting at zero
+    final double v = Math.max(encoder.getPulseWidth() - 1000, 0);
+    final double p = Math.min(encoder.getPeriod() - 1000, 1024000); // nanoseconds
     return MathUtil.inputModulus(v / p, 0, 1);
   }
 
@@ -266,7 +267,7 @@ public final class Turret extends SubsystemBase {
       offsetStdev = Degrees.of(stdev);
 
       // reset turret motor position to the derived angle when the offset stabilizes
-      if (!initialized && stdev < 2 * kTolerance && Math.abs(mean) > kTolerance) {
+      if (!initialized && stdev < 2 * kTolerance) {
         motor.resetPosition(toMotorPosition(crtAngle));
         initialized = true;
       }
@@ -306,8 +307,8 @@ public final class Turret extends SubsystemBase {
     if (!initialized) {
       // ensure both encoders are configured, this function is nop if the encoder
       // is already configured and retries configuration otherwise
-      encoder1.configure();
-      encoder2.configure();
+      encoder1.configure(false);
+      encoder2.configure(false);
     }
 
     // ensure both encoders are reporting valid readings

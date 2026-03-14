@@ -115,7 +115,8 @@ public final class Climb extends SubsystemBase {
     Tunable.bind1("Climb/Lower", motor);
     Tunable.bindMotionProfile("Climb/Lower", motor);
 
-    sensor = canduit.createPWMInput(Constants.CANduitID.CLIMB_SENSOR);
+    // NOTE: currently disabled
+    sensor = canduit.createPWMInput(Constants.CANduitID.CLIMB_SENSOR, true);
 
     // manual = true; // FOR TESTING ONLY
   }

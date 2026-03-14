@@ -46,6 +46,9 @@ public class RobotContainer {
   private final LedFeedback ledFeedback = new LedFeedback(led, this::getDefaultLedFeedback);
   private final LedVision ledVision = new LedVision(led, this::getDefaultVisionFeedback);
 
+  @Logged(name = "CANduit", importance = Importance.INFO)
+  private final CANduit canduit;
+
   @Logged(name = "AprilTagDetector", importance = Importance.INFO)
   private final AprilTagDetector aprilTagDetector = new AprilTagDetector();
 
@@ -89,6 +92,7 @@ public class RobotContainer {
       new Alert("Driver controller disconnected (port 0).", AlertType.kWarning);
 
   public RobotContainer(CANduit canduit) {
+    this.canduit = canduit;
     turret = new Turret(TunerConstants.kCANBus, canduit);
     climb = new Climb(TunerConstants.kCANBus, canduit);
 

@@ -10,6 +10,7 @@ import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.Matrix;
 import edu.wpi.first.math.VecBuilder;
+import edu.wpi.first.math.filter.LinearFilter;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
@@ -17,6 +18,9 @@ import edu.wpi.first.math.numbers.N1;
 import edu.wpi.first.math.numbers.N3;
 import edu.wpi.first.math.util.Units;
 import edu.wpi.first.units.measure.Angle;
+import edu.wpi.first.units.measure.Distance;
+import edu.wpi.first.units.measure.LinearAcceleration;
+import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.units.measure.Time;
 import edu.wpi.first.units.measure.Voltage;
 import edu.wpi.first.wpilibj.RobotController;
@@ -26,6 +30,7 @@ import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.robot.generated.TunerConstants;
 import frc.robot.lib.GamePhaseTracker.Phase;
 import frc.robot.lib.GamePhaseTracker.PhaseInfo;
+import frc.robot.lib.ShotCalculator;
 import frc.robot.lib.SwerveTelemetry;
 import frc.robot.lib.TimestampedCircularBuffer;
 import frc.robot.lib.VisionState;
@@ -54,6 +59,11 @@ public class RobotState {
   private static final double kOdometryTrustPenalty = 0.05;
   private static final double kLowBatteryVoltage = 11.0;
 
+  // shooting constants
+  private static final Distance kMinScoreDistance = Meters.of(0.5);
+  private static final Distance kMaxScoreDistance = Meters.of(5);
+  private static final LinearVelocity kMaxScoreSpeed = MetersPerSecond.of(4);
+
   // std.dev for vision: we do trust vision so set these relatively low
   private static final Matrix<N3, N1> kVisionStdDevs =
       VecBuilder.fill(
@@ -62,6 +72,23 @@ public class RobotState {
   // timestamped log of recently measured (within last second) chassis speeds
   private final TimestampedCircularBuffer<ChassisSpeeds> chassisSpeeds =
       new TimestampedCircularBuffer<>(50);
+
+  // previously recorded chassis speed (field relative)
+  private ChassisSpeeds prevChassisSpeed = null;
+
+  // timestamp of previously recorded chassis speed in seconds
+  // NOTE: this timestamp is in timebase of the CTRE status signals,
+  // which is based on a monotonic continuous time source that does
+  // NOT have to match FPGA time on the robot
+  private double prevChassisSpeedTimestamp = -1;
+
+  // acceleration estimate (SMA) based on chassis speed delta
+  private final LinearFilter accelerationEstimate = LinearFilter.movingAverage(5);
+
+  @Logged(name = "Acceleration", importance = Importance.DEBUG)
+  public LinearAcceleration getAcceleration() {
+    return MetersPerSecondPerSecond.of(accelerationEstimate.lastValue());
+  }
 
   // bound drivetrain
   private CommandSwerveDrivetrain drivetrain;
@@ -224,6 +251,61 @@ public class RobotState {
     drivetrain.resetPose(pose);
   }
 
+  private static final double kShotQualityFactor = 1.0;
+  private static final double kOdometryFactor = 1.0;
+  private static final double kDistanceFactor = 0.5;
+  private static final double kAccelerationFactor = 0.8;
+
+  private static final double kConfidenceFactor =
+      kShotQualityFactor + kOdometryFactor + kDistanceFactor + kAccelerationFactor;
+
+  private static final double kMaxAcceleration =
+      Constants.DriveConstants.maxAcceleration.in(MetersPerSecondPerSecond);
+
+  private static final double kScoreDistanceRange =
+      kMaxScoreDistance.in(Meters) - kMinScoreDistance.in(Meters);
+
+  /**
+   * Computes a shot confidence score between 0 and 1 as a weighted geometry mean of multiple
+   * factors: shot solution quality, acceleration, vision, and distance from range edges.
+   */
+  private double computeShotConfidence(ShotCalculator.ShotParameters parameters) {
+    var sum = 0.0;
+
+    final var q = parameters.quality();
+    if (q <= 0) {
+      return 0;
+    }
+
+    sum += kShotQualityFactor * Math.log(q);
+
+    if (odometryTrust <= 0) {
+      return 0;
+    }
+
+    sum += kOdometryFactor * Math.log(odometryTrust);
+
+    // distance factor
+    var df = parameters.distance().minus(kMinScoreDistance).in(Meters) / kScoreDistanceRange;
+    df = MathUtil.clamp(1.0 - 2.0 * Math.abs(df - 0.5), 0, 1);
+    if (df <= 0) {
+      return 0;
+    }
+
+    sum += kDistanceFactor * Math.log(df);
+
+    // acceleration factor
+    final var af =
+        MathUtil.clamp(1.0 - Math.abs(accelerationEstimate.lastValue()) / kMaxAcceleration, 0, 1);
+    if (af <= 0) {
+      return 0;
+    }
+
+    sum += kAccelerationFactor * Math.log(af);
+
+    return sum <= 0 ? 0 : MathUtil.clamp(Math.exp(sum / kConfidenceFactor), 0, 1);
+  }
+
   /** Sets robot pose to a known pose and restores trust. */
   public void setRobotPose(Pose2d pose) {
     resetOdometryPose(pose);
@@ -251,6 +333,19 @@ public class RobotState {
       final var robotSpeeds = driveState.Speeds;
       final var fieldSpeeds = ChassisSpeeds.fromRobotRelativeSpeeds(robotSpeeds, rotation);
       chassisSpeeds.enqueue(timestamp, fieldSpeeds);
+
+      // estimate acceleration
+      if (prevChassisSpeed != null) {
+        final var dt = driveState.Timestamp - prevChassisSpeedTimestamp;
+        final var prevSpeed =
+            Math.hypot(prevChassisSpeed.vxMetersPerSecond, prevChassisSpeed.vyMetersPerSecond);
+        final var currentSpeed =
+            Math.hypot(fieldSpeeds.vxMetersPerSecond, fieldSpeeds.vyMetersPerSecond);
+        accelerationEstimate.calculate((currentSpeed - prevSpeed) / dt);
+      }
+
+      prevChassisSpeed = fieldSpeeds;
+      prevChassisSpeedTimestamp = driveState.Timestamp;
 
       // reduce trust in odometry if slippage is detected
       final var maxSlipRatio =

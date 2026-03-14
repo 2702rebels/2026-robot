@@ -45,7 +45,7 @@ public final class Hopper extends SubsystemBase {
   private boolean enabled = false;
 
   private static final double kSpindexerStatorCurrentLimit = 40.0;
-  private static final double kFeedStatorCurrentLimit = 60.0;
+  private static final double kFeedStatorCurrentLimit = 80.0;
 
   private static final double kSpindexerConversionFactor = (36.0 / 14.0) * (72.0 / 24.0);
   private static final double kSpindexerTolerance = 15; // RPMs

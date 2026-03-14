@@ -1,5 +1,7 @@
 package frc.robot.lib;
 
+import edu.wpi.first.epilogue.Logged;
+import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.hal.CANData;
 import edu.wpi.first.wpilibj.CAN;
 import edu.wpi.first.wpilibj.Timer;
@@ -18,10 +20,17 @@ public class CANduit {
   private final CAN can;
   private final boolean connected;
 
+  @Logged(name = "Modes", importance = Importance.DEBUG)
+  private final int[] modes = new int[8];
+
   private static final int CLASS_SET_MODE = 1;
   private static final int CLASS_DIO = 2;
   private static final int CLASS_BCAST_STATUS = 20;
   private static final int CLASS_BCAST_PWM_VALUE = 21;
+
+  private static final int API_BCAST_STATUS_STATES = 0;
+  private static final int API_BCAST_STATUS_RESETS = 1;
+  private static final int API_BCAST_STATUS_MODES = 2;
 
   private static final byte MODE_NONE = 0;
   private static final byte MODE_DIO_IN = 1;
@@ -32,17 +41,21 @@ public class CANduit {
     protected final CANduit canduit;
     protected final int gpio;
     protected final byte mode;
+    protected final boolean disabled;
     protected long timestamp;
     protected final CANData data = new CANData();
+    private byte configuredMode = 0;
 
-    private boolean configured = false;
-
-    protected Channel(CANduit canduit, int gpio, byte mode) {
+    protected Channel(CANduit canduit, int gpio, byte mode, boolean disabled) {
       this.canduit = canduit;
       this.gpio = gpio;
       this.mode = mode;
+      this.disabled = disabled;
       canduit.acquireGPIO(gpio, this);
-      canduit.configureGPIO(gpio, mode);
+
+      if (!disabled) {
+        canduit.configureGPIO(gpio, mode);
+      }
     }
 
     /** Updates the input. Must be invoked in the robot periodic. */
@@ -52,20 +65,35 @@ public class CANduit {
      * Attempts to configure the channel according to its GPIO and mode if it has not been
      * configured yet. Use {@link #isConfigured()} to test the configuration state.
      *
+     * @param checkConfiguration indicates that configuration should be checked via blocking call
      * @return true if the channel has been configured successfully.
      */
-    public boolean configure() {
-      if (!configured) {
-        canduit.configureGPIO(gpio, mode);
+    public boolean configure(boolean checkConfiguration) {
+      if (disabled) {
+        return false;
+      }
 
+      if (isConfigured()) {
+        return true;
+      }
+
+      canduit.configureGPIO(gpio, mode);
+
+      if (checkConfiguration) {
         // 10 ms timeout
         final var configuredMode = canduit.readConfiguredMode(gpio, 0.01);
         if (configuredMode.isPresent()) {
-          configured = configuredMode.get() == mode;
+          return configuredMode.get() == mode;
         }
+
+        return false;
       }
 
-      return configured;
+      return true;
+    }
+
+    private void syncConfiguredMode(byte mode) {
+      configuredMode = mode;
     }
 
     /** Returns timestamp of the most recent value. */
@@ -80,7 +108,12 @@ public class CANduit {
 
     /** Returns an indicator that the channel has been successfully configured. */
     public boolean isConfigured() {
-      return configured;
+      return mode == configuredMode;
+    }
+
+    /** Returns an indicator that the channel is disabled. */
+    public boolean isDisabled() {
+      return disabled;
     }
   }
 
@@ -90,14 +123,15 @@ public class CANduit {
 
     protected boolean value;
 
-    private DigitalIO(CANduit canduit, int gpio, byte mode) {
-      super(canduit, gpio, mode);
+    private DigitalIO(CANduit canduit, int gpio, byte mode, boolean disabled) {
+      super(canduit, gpio, mode, disabled);
     }
 
     @Override
     protected void update() {
       // [!] CLASS_BCAST_STATUS returns the status for ALL pins and always uses API index 0
-      if (canduit.readDataLatest(0, CLASS_BCAST_STATUS, data) && data.length > 0) {
+      if (canduit.readDataLatest(API_BCAST_STATUS_STATES, CLASS_BCAST_STATUS, data)
+          && data.length > 0) {
         // byte 0: GPIO state - bits 0 through 7 correspond to GPIO 0 through 7
         value = (data.data[0] & (0b00000001 << gpio)) != 0;
         timestamp = data.timestamp;
@@ -111,14 +145,14 @@ public class CANduit {
   }
 
   public class DigitalInput extends DigitalIO {
-    private DigitalInput(CANduit canduit, int gpio) {
-      super(canduit, gpio, MODE_DIO_IN);
+    private DigitalInput(CANduit canduit, int gpio, boolean disabled) {
+      super(canduit, gpio, MODE_DIO_IN, disabled);
     }
   }
 
   public class DigitalOutput extends DigitalIO {
-    private DigitalOutput(CANduit canduit, int gpio) {
-      super(canduit, gpio, MODE_DIO_OUT);
+    private DigitalOutput(CANduit canduit, int gpio, boolean disabled) {
+      super(canduit, gpio, MODE_DIO_OUT, disabled);
     }
 
     /** Sets the output. */
@@ -130,9 +164,10 @@ public class CANduit {
   public class PWMInput extends Channel {
     protected int period = -1;
     protected int width = -1;
+    protected int generation = -1;
 
-    private PWMInput(CANduit canduit, int gpio) {
-      super(canduit, gpio, MODE_PWM_IN);
+    private PWMInput(CANduit canduit, int gpio, boolean disabled) {
+      super(canduit, gpio, MODE_PWM_IN, disabled);
     }
 
     @Override
@@ -141,6 +176,16 @@ public class CANduit {
         final var bb = ByteBuffer.wrap(data.data).order(ByteOrder.LITTLE_ENDIAN);
         width = bb.getInt();
         period = bb.getInt();
+
+        // width and period are 28-bit values, with top 4 bits capturing the generation
+        // unsigned shift to extract generation bits
+        final var lo = width >>> 28;
+        final var hi = period >>> 28;
+        generation = lo | (hi << 4);
+
+        width &= 0xFFFFFFF;
+        period &= 0xFFFFFFF;
+
         timestamp = data.timestamp;
       }
     }
@@ -162,11 +207,51 @@ public class CANduit {
       return width;
     }
 
+    /** Returns most recent generation number. */
+    public int generation() {
+      return generation;
+    }
+
     /** Determines whether valid reading is present. */
     public boolean hasValue() {
       return period > 0 && width >= 0;
     }
   }
+
+  public static class ResetCounters {
+    private int powerOn;
+    private int brownount;
+    private int other;
+    private int disable;
+
+    /** Returns number of power-on resets. */
+    @Logged(name = "PowerOn", importance = Importance.DEBUG)
+    public int powerOn() {
+      return powerOn;
+    }
+
+    /** Returns number of brownout/glitch resets. */
+    @Logged(name = "Brownout", importance = Importance.DEBUG)
+    public int brownout() {
+      return brownount;
+    }
+
+    /** Returns number of other reason resets. */
+    @Logged(name = "Other", importance = Importance.DEBUG)
+    public int other() {
+      return other;
+    }
+
+    /** Returns number of disable broadcast resets. */
+    @Logged(name = "Disable", importance = Importance.DEBUG)
+    public int disable() {
+      return disable;
+    }
+  }
+
+  /** Gets the reset counters. */
+  @Logged(name = "ResetCounters", importance = Importance.DEBUG)
+  public final ResetCounters resetCounters = new ResetCounters();
 
   /**
    * Initializes a CANduit device.
@@ -186,23 +271,70 @@ public class CANduit {
 
   /** Acquires the specified GPIO and exposes it as a digital input. */
   public DigitalInput createDigitalInput(int gpio) {
-    return new DigitalInput(this, gpio);
+    return createDigitalInput(gpio, false);
+  }
+
+  /** Acquires the specified GPIO and exposes it as a digital input. */
+  public DigitalInput createDigitalInput(int gpio, boolean disabled) {
+    return new DigitalInput(this, gpio, disabled);
   }
 
   /** Acquires the specified GPIO and exposes it as a digital output. */
   public DigitalOutput createDigitalOutput(int gpio) {
-    return new DigitalOutput(this, gpio);
+    return createDigitalOutput(gpio, false);
+  }
+
+  /** Acquires the specified GPIO and exposes it as a digital output. */
+  public DigitalOutput createDigitalOutput(int gpio, boolean disabled) {
+    return new DigitalOutput(this, gpio, disabled);
   }
 
   /** Acquires the specified GPIO and exposes it as a generic PWM input. */
   public PWMInput createPWMInput(int gpio) {
-    return new PWMInput(this, gpio);
+    return createPWMInput(gpio, false);
+  }
+
+  /** Acquires the specified GPIO and exposes it as a generic PWM input. */
+  public PWMInput createPWMInput(int gpio, boolean disabled) {
+    return new PWMInput(this, gpio, disabled);
   }
 
   /** Updates all registered input channels. Must be invoked in the robot periodic. */
   public void update() {
+    updateModes();
+    updateResets();
+
     for (var channel : channels.values()) {
       channel.update();
+    }
+  }
+
+  private final CANData packetModes = new CANData();
+  private final CANData packetResets = new CANData();
+
+  /** Updates configured modes on GPIO pins. */
+  private void updateModes() {
+    if (readDataLatest(API_BCAST_STATUS_MODES, CLASS_BCAST_STATUS, packetModes)
+        && packetModes.length == 8) {
+      for (var channel : channels.values()) {
+        channel.syncConfiguredMode(packetModes.data[channel.gpio]);
+      }
+
+      // store modes for telemetry
+      for (var i = 0; i < 8; ++i) {
+        modes[i] = packetModes.data[i];
+      }
+    }
+  }
+
+  /** Updates various reset counters. */
+  private void updateResets() {
+    if (readDataLatest(API_BCAST_STATUS_RESETS, CLASS_BCAST_STATUS, packetResets)
+        && packetResets.length == 8) {
+      resetCounters.powerOn = packetResets.data[0];
+      resetCounters.brownount = packetResets.data[1];
+      resetCounters.other = packetResets.data[2];
+      resetCounters.disable = packetResets.data[3];
     }
   }
 
