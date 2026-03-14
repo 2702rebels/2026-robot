@@ -220,7 +220,7 @@ public class CANduit {
 
   public static class ResetCounters {
     private int powerOn;
-    private int brownount;
+    private int brownout;
     private int other;
     private int disable;
 
@@ -233,7 +233,7 @@ public class CANduit {
     /** Returns number of brownout/glitch resets. */
     @Logged(name = "Brownout", importance = Importance.DEBUG)
     public int brownout() {
-      return brownount;
+      return brownout;
     }
 
     /** Returns number of other reason resets. */
@@ -331,10 +331,10 @@ public class CANduit {
   private void updateResets() {
     if (readDataLatest(API_BCAST_STATUS_RESETS, CLASS_BCAST_STATUS, packetResets)
         && packetResets.length == 8) {
-      resetCounters.powerOn = packetResets.data[0];
-      resetCounters.brownount = packetResets.data[1];
-      resetCounters.other = packetResets.data[2];
-      resetCounters.disable = packetResets.data[3];
+      resetCounters.powerOn = packetResets.data[0] & 0xFF;
+      resetCounters.brownout = packetResets.data[1] & 0xFF;
+      resetCounters.other = packetResets.data[2] & 0xFF;
+      resetCounters.disable = packetResets.data[3] & 0xFF;
     }
   }
 

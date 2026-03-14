@@ -62,9 +62,13 @@ public final class Climb extends SubsystemBase {
   // indicates that the subsystem has been initialized by zeroing the position of the climb
   private boolean initialized = false;
 
-  // indicates that the robot has attempted to climb/climbed and should be lowered in a controlled
-  // manner
-  private boolean engaged = false;
+  private static enum State {
+    kNeutral,
+    kEngaging,
+    kEngaged,
+  };
+
+  private State state = State.kNeutral;
 
   private static final double kStatorCurrentLimit = 100.0;
   private static final double kTolerance = 0.5; // inches
@@ -158,19 +162,33 @@ public final class Climb extends SubsystemBase {
         // otherwise, use simple PID to jump to the setpoint
         final var position = setpoint.in(Inches) * kConversionFactor;
         motor.setControl(
-            engaged ? controlLower.withPosition(position) : control.withPosition(position));
+            state == State.kEngaged
+                ? controlLower.withPosition(position)
+                : control.withPosition(position));
       } else {
         motor.stopMotor();
       }
     }
 
     // reset "engaged" flag once the hook is fully extended
-    if (engaged) {
-      final var positionExtended = kPositionExtended.get();
-      if (MathUtil.isNear(setpoint.in(Inches), positionExtended, kTolerance)
-          && getPosition().in(Inches) >= positionExtended - kTolerance) {
-        engaged = false;
-      }
+    switch (state) {
+      case kEngaged:
+        final var positionExtended = kPositionExtended.get();
+        if (MathUtil.isNear(setpoint.in(Inches), positionExtended, kTolerance)
+            && getPosition().in(Inches) >= positionExtended - kTolerance) {
+          state = State.kNeutral;
+        }
+        break;
+
+      case kEngaging:
+        if (MathUtil.isNear(getPosition().in(Inches), kPositionEngaged.get(), kTolerance)) {
+          state = State.kEngaged;
+        }
+        break;
+
+      default:
+        // ignore
+        break;
     }
   }
 
@@ -204,7 +222,7 @@ public final class Climb extends SubsystemBase {
 
   @Logged(name = "Engaged", importance = Importance.INFO)
   public boolean isEngaged() {
-    return engaged;
+    return state == State.kEngaged;
   }
 
   /** Disables the subsystem. */
@@ -247,7 +265,7 @@ public final class Climb extends SubsystemBase {
   public Command engage() {
     return runOnce(
             () -> {
-              engaged = true;
+              state = State.kEngaging;
               setpoint = Inches.of(kPositionEngaged.get());
             })
         .withName("ClimbEngage");
@@ -273,7 +291,7 @@ public final class Climb extends SubsystemBase {
                     Commands.waitSeconds(2),
                     Commands.runOnce(
                         () -> {
-                          engaged = false;
+                          state = State.kNeutral;
                         }))));
   }
 
