@@ -48,6 +48,8 @@ public final class Turret extends SubsystemBase {
   @Logged(name = "CrtAngle", importance = Importance.DEBUG)
   private Angle crtAngle = Degrees.zero();
 
+  private Optional<Angle> turretAngle;
+
   @Logged(name = "CrtStatus", importance = Importance.DEBUG)
   private CRTStatus crtStatus = CRTStatus.NOT_ATTEMPTED;
 
@@ -82,8 +84,11 @@ public final class Turret extends SubsystemBase {
   private static final double kEncoder1Ratio = kTurretTeeth / 17.0;
   private static final double kEncoder2Ratio = kTurretTeeth / 19.0;
 
-  private static final Angle kEncoder1Offset = Degrees.of(-92.3);
-  private static final Angle kEncoder2Offset = Degrees.of(-173.0);
+  // private static final Angle kEncoder1Offset = Degrees.of(-92.3);
+  // private static final Angle kEncoder2Offset = Degrees.of(-173.0);
+  private static final Angle kEncoder1Offset =
+      Degrees.of(106.2); // Zero offsets for Phil's test setup - XXX
+  private static final Angle kEncoder2Offset = Degrees.of(181.0); // - XXX
   private static final Angle kMinRange = Degrees.of(-260.0);
   private static final Angle kMaxRange = Degrees.of(260.0);
 
@@ -318,7 +323,6 @@ public final class Turret extends SubsystemBase {
     Pair<Angle, Double> calcRotation1 = CalculateAngleAndError(encoder1, encoder2);
     SmartDashboard.putNumber("calcRot1", calcRotation1.getFirst().in(Rotations));
     SmartDashboard.putNumber("error1", calcRotation1.getSecond());
-    // final Angle halfRotation = Angle.ofBaseUnits(0.5, Rotations);
     final Angle halfRotation = Rotations.of(0.5);
 
     Pair<Angle, Double> calcRotation2 =
@@ -345,12 +349,16 @@ public final class Turret extends SubsystemBase {
 
   @Logged(name = "Encoder1/Angle", importance = Importance.INFO)
   public Angle getEncoder1Angle() {
-    return Rotations.of(encoder1Filter.calculate(getEncoderRotations(encoder1)));
+    // Don't filter encoder values - XXX
+    return Rotations.of(getEncoderRotations(encoder1));
+    // return Rotations.of(encoder1Filter.calculate(getEncoderRotations(encoder1)));
   }
 
   @Logged(name = "Encoder2/Angle", importance = Importance.INFO)
   public Angle getEncoder2Angle() {
-    return Rotations.of(encoder2Filter.calculate(getEncoderRotations(encoder2)));
+    // Invert direction for Phil's test setup - XXX
+    return Rotation.one().minus(Rotations.of(getEncoderRotations(encoder2)));
+    // return Rotations.of(encoder2Filter.calculate(getEncoderRotations(encoder2)));
   }
 
   @Logged(name = "Encoder1/Configured", importance = Importance.INFO)
@@ -379,6 +387,13 @@ public final class Turret extends SubsystemBase {
       encoder1.configure(false);
       encoder2.configure(false);
     }
+    turretAngle = Optional.of(getTurretRotation(getEncoder1Angle(), getEncoder2Angle()));
+    SmartDashboard.putNumber("Encoder1 Raw Angle", getEncoder1Angle().in(Degrees));
+    SmartDashboard.putNumber("Encoder2 Raw Angle", getEncoder2Angle().in(Degrees));
+    SmartDashboard.putNumber("Turret Angle", turretAngle.orElse(Degrees.of(0.0)).in(Degrees));
+
+    turretAngle = getEstimatedTurretAngle(getEncoder1Angle(), getEncoder2Angle());
+    SmartDashboard.putNumber("CRT Turret Angle", turretAngle.orElse(Degrees.of(0.0)).in(Degrees));
 
     // ensure both encoders are reporting valid readings
     if (hasSensors()) {

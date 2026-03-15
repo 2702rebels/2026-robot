@@ -5,7 +5,6 @@ import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.hal.CANData;
 import edu.wpi.first.wpilibj.CAN;
 import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.HashMap;
@@ -337,10 +336,10 @@ public class CANduit {
       resetCounters.other = packetResets.data[2];
       resetCounters.disable = packetResets.data[3];
 
-      SmartDashboard.putNumber("poweron cnt", resetCounters.powerOn);
-      SmartDashboard.putNumber("brownout cnt", resetCounters.brownout);
-      SmartDashboard.putNumber("other cnt", resetCounters.other);
-      SmartDashboard.putNumber("disable cnt", resetCounters.disable);
+      // SmartDashboard.putNumber("poweron cnt", resetCounters.powerOn);
+      // SmartDashboard.putNumber("brownout cnt", resetCounters.brownout);
+      // SmartDashboard.putNumber("other cnt", resetCounters.other);
+      // SmartDashboard.putNumber("disable cnt", resetCounters.disable);
     }
   }
 
