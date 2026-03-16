@@ -124,6 +124,13 @@ public final class Constants {
       public static final double kD = 0;
     }
 
+    /** PID configuration for translation controllers */
+    public static final class Translation {
+      public static final double kP = 3;
+      public static final double kI = 0;
+      public static final double kD = 0;
+    }
+
     /** PID configuration for rotation controllers */
     public static final class Rotation {
       public static final double kP = 1;

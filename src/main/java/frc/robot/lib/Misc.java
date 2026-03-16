@@ -1,6 +1,8 @@
 package frc.robot.lib;
 
+import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.wpilibj.util.Color;
 
 public final class Misc {
@@ -108,5 +110,27 @@ public final class Misc {
     // V = [0-255] instead of [0-100]
     return new ColorHSV(
         (int) Math.round(h / 2), (int) Math.round(s * 255), (int) Math.round(v * 255));
+  }
+
+  // normal vector corresponding to a rotation of zero degrees
+  private static final Translation2d kUnit = new Translation2d(1, 0);
+
+  /**
+   * Determines whether we are inside the half-plane on the target side, meaning that robot has to
+   * move backwards/sideways to get there.
+   *
+   * <p>Assume that target pose points into the half plane.
+   *
+   * @param target Target pose defining the half plane
+   * @param current Current pose of the robot
+   * @param threshold Offset to the half plane boundary
+   */
+  public static boolean isInsideHalfPlane(Pose2d target, Pose2d current, double threshold) {
+    final var normal = kUnit.rotateBy(target.getRotation());
+    final var a = normal.getX();
+    final var b = normal.getY();
+    final var c = -(a * target.getX() + b * target.getY());
+
+    return a * current.getX() + b * current.getY() + c >= threshold;
   }
 }

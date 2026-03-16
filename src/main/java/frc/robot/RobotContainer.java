@@ -100,6 +100,9 @@ public class RobotContainer {
     state.setVisionStateSupplier(aprilTagDetector::getState);
     state.setGamePhaseSupplier(gamePhaseTracker::getPhase);
 
+    turret.setTrackingSupplier(state::getTurretAngleSetpoint);
+    shooter.setTrackingSupplier(state::getShooterParameters);
+
     // [!] order matters here: we want to poll driver input first, since in most cases
     // we set intent via instant command that updates the robot state in place;
     // thus allowing triggers bound to the intent-based conditions to fire in the same
@@ -164,8 +167,18 @@ public class RobotContainer {
     controllerDriver.povUp().and(() -> !climb.isEngaged()).onTrue(climb.extend());
     controllerDriver.povDown().and(() -> !climb.isEngaged()).onTrue(climb.retract());
 
+    controllerDriver.rightBumper().whileTrue(shooter.parkHood());
+
     controllerDriver.leftBumper().and(climb::isReady).onTrue(climb.engage());
     controllerDriver.x().and(climb::isEngaged).onTrue(climb.disengage());
+
+    // controllerDriver.povLeft().onTrue(drivetrain.align(() -> new
+    // APTarget(state.getShootPose())));
+    // controllerDriver
+    //     .povLeft()
+    //     .whileTrue(
+    //         new DriveToPose(
+    //             drivetrain, () -> Optional.of(state.getShootPose()), state::getRobotPose));
 
     // controllerDriver.y().onTrue();
     // controllerDriver.b().onTrue(intake.enable().andThen(intake.deploy()));

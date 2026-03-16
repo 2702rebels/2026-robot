@@ -144,4 +144,17 @@ public final class Field {
   }
 
   public static Function<Pose2d, Pose2d> fieldPose = createFieldPoseSupplier();
+
+  /**
+   * Returns the supplier of translation specified in the blue alliance origin corrected to the
+   * current alliance.
+   */
+  public static Function<Translation2d, Translation2d> createFieldTranslationSupplier() {
+    return (Translation2d translation) -> {
+      return shouldFlip() ? flip(translation) : translation;
+    };
+  }
+
+  public static Function<Translation2d, Translation2d> fieldTranslation =
+      createFieldTranslationSupplier();
 }

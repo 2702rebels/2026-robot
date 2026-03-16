@@ -227,20 +227,12 @@ public final class Climb extends SubsystemBase {
 
   /** Disables the subsystem. */
   public Command disable() {
-    return runOnce(
-            () -> {
-              enabled = false;
-            })
-        .withName("ClimbDisable");
+    return runOnce(() -> enabled = false).withName("ClimbDisable");
   }
 
   /** Enables the subsystem. */
   public Command enable() {
-    return runOnce(
-            () -> {
-              enabled = true;
-            })
-        .withName("ClimbEnable");
+    return runOnce(() -> enabled = true).withName("ClimbEnable");
   }
 
   /** Extends the hook. */

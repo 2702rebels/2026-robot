@@ -9,9 +9,12 @@ import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.Matrix;
+import edu.wpi.first.math.Pair;
 import edu.wpi.first.math.VecBuilder;
 import edu.wpi.first.math.filter.LinearFilter;
+import edu.wpi.first.math.filter.MedianFilter;
 import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.numbers.N1;
@@ -33,6 +36,7 @@ import frc.robot.lib.GamePhaseTracker.PhaseInfo;
 import frc.robot.lib.ShotCalculator;
 import frc.robot.lib.SwerveTelemetry;
 import frc.robot.lib.TimestampedCircularBuffer;
+import frc.robot.lib.Tunable;
 import frc.robot.lib.VisionState;
 import frc.robot.subsystems.CommandSwerveDrivetrain;
 import java.util.Arrays;
@@ -63,6 +67,13 @@ public class RobotState {
   private static final Distance kMinScoreDistance = Meters.of(0.5);
   private static final Distance kMaxScoreDistance = Meters.of(5);
   private static final LinearVelocity kMaxScoreSpeed = MetersPerSecond.of(4);
+
+  // offset to the center of the turret in meters
+  public static final Translation2d kShooterOffsetXY =
+      new Translation2d(Meters.convertFrom(-6, Inches), Meters.convertFrom(-6, Inches));
+
+  // offset to the zero of the turret from the robot heading
+  public static final Rotation2d kTurretOffset = Rotation2d.fromDegrees(180);
 
   // std.dev for vision: we do trust vision so set these relatively low
   private static final Matrix<N3, N1> kVisionStdDevs =
@@ -107,11 +118,51 @@ public class RobotState {
   private Time phaseRemainingTime = Seconds.zero();
   private boolean hubActive;
 
+  private final ShotCalculator shotCalculator;
+  private ShotCalculator.ShotParameters shotParameters =
+      new ShotCalculator.ShotParameters(
+          Translation2d.kZero, Meters.zero(), Seconds.zero(), 0, 0, 0);
+
+  private final MedianFilter shotVelocity = new MedianFilter(5);
+  private final MedianFilter shotAngle = new MedianFilter(5);
+
+  @Logged(name = "ComputedShotConfidence")
+  private double shotConfidence = 0;
+
+  @Logged(name = "TurretAngleSetpoint")
+  private Angle turretAngle = Degrees.zero();
+
+  @Logged(name = "ComputedShotVelocity")
+  public double getShotVelocity() {
+    return shotVelocity.lastValue();
+  }
+
+  @Logged(name = "ComputedShotAngle")
+  public double getShotAngle() {
+    return shotAngle.lastValue();
+  }
+
+  @Logged(name = "ComputedShotQuality")
+  public double getShotQuality() {
+    return shotParameters.quality();
+  }
+
   private RobotState() {
     if (Constants.Settings.ctreLoggingEnabled) {
       SignalLogger.setPath("/u/logs/ctre/");
       SignalLogger.start();
     }
+
+    // initialize shot calculator LUT
+    shotCalculator = new ShotCalculator(kShooterOffsetXY);
+
+    shotCalculator.putLUTEntry(Meters.of(5.0), 4150, 25, 1.25);
+    shotCalculator.putLUTEntry(Meters.of(4.5), 3900, 20, 1.25);
+    shotCalculator.putLUTEntry(Meters.of(4.0), 3600, 20, 1.20);
+    shotCalculator.putLUTEntry(Meters.of(3.5), 3450, 20, 1.10);
+    shotCalculator.putLUTEntry(Meters.of(3.0), 3150, 20, 1.00);
+    shotCalculator.putLUTEntry(Meters.of(2.5), 3050, 15, 1.00);
+    shotCalculator.putLUTEntry(Meters.of(2.0), 2900, 15, 0.90);
   }
 
   /** Odometry trust (0 - no trust, 1 - full trust) */
@@ -161,6 +212,13 @@ public class RobotState {
     return visionPoseTimestamp > 0
         ? (RobotController.getTime() - visionPoseTimestamp) / 1000.0
         : -1;
+  }
+
+  /** Recent vision pose indicator */
+  @Logged(name = "HasRecentVisionPose", importance = Importance.INFO)
+  public boolean hasRecentVisionPose() {
+    final var age = getVisionPoseAge();
+    return age >= 0 && age < 100;
   }
 
   /** Roll angle */
@@ -306,6 +364,32 @@ public class RobotState {
     return sum <= 0 ? 0 : MathUtil.clamp(Math.exp(sum / kConfidenceFactor), 0, 1);
   }
 
+  /** Determines turret angle to the target. */
+  private Angle getTurretAngleTo(Translation2d target) {
+    final var pose = getRobotPose();
+    final var translation = pose.getTranslation();
+    final var rotation = pose.getRotation();
+
+    // find the poosition of the shooter in the field frame of reference
+    final var offsetXY = kShooterOffsetXY.rotateBy(rotation);
+    final var shooterXY = translation.plus(offsetXY);
+
+    // turret desired angle and zero in field frame of reference
+    final var turretDesired = target.minus(shooterXY).getAngle();
+    final var turretZero = rotation.plus(kTurretOffset);
+
+    return turretDesired.minus(turretZero).getMeasure();
+  }
+
+  public Optional<Angle> getTurretAngleSetpoint() {
+    return Optional.of(turretAngle);
+  }
+
+  public Optional<Pair<Double, Double>> getShooterParameters() {
+    if (shotParameters.quality() < 0.5) return Optional.empty();
+    return Optional.of(Pair.of(shotAngle.lastValue(), shotVelocity.lastValue()));
+  }
+
   /** Sets robot pose to a known pose and restores trust. */
   public void setRobotPose(Pose2d pose) {
     resetOdometryPose(pose);
@@ -401,6 +485,15 @@ public class RobotState {
     phaseElapsedTime = Seconds.of(phaseInfo.elapsedTime());
     phaseRemainingTime = Seconds.of(phaseInfo.remainingTime());
     hubActive = phaseInfo.active();
+
+    // determine effective turret angle
+    final var shotTarget = Field.fieldTranslation.apply(Field.kHubCenter);
+    turretAngle = getTurretAngleTo(shotTarget);
+    shotParameters =
+        shotCalculator.calculate(getRobotPose(), drivetrain.getFieldSpeeds(), shotTarget);
+    shotConfidence = computeShotConfidence(shotParameters);
+    shotVelocity.calculate(shotParameters.shooterVelocity());
+    shotAngle.calculate(shotParameters.shooterAngle());
   }
 
   /**
@@ -495,5 +588,33 @@ public class RobotState {
             (moduleTranslationVelocity.getNorm() - robotVelocityNorm) / robotVelocityNorm;
       }
     }
+  }
+
+  @Logged(name = "HubShotDistance", importance = Importance.DEBUG)
+  public Distance hubShotDistance() {
+    final var target = Field.fieldTranslation.apply(Field.kHubCenter);
+    final var robotPose = getRobotPose();
+    final var offsetXY = kShooterOffsetXY.rotateBy(robotPose.getRotation());
+    final var shooterXY = robotPose.getTranslation().plus(offsetXY);
+
+    return Meters.of(shooterXY.minus(target).getNorm());
+  }
+
+  private static final Tunable.DoubleValue shootDistanceToHub =
+      Tunable.value("ShootDistanceToHub", 3);
+
+  @Logged(name = "ShootPose", importance = Importance.DEBUG)
+  public Pose2d getShootPose() {
+    final var target = Field.fieldTranslation.apply(Field.kHubCenter);
+    final var corner =
+        Field.fieldTranslation.apply(new Translation2d(0, Field.kFieldWidth.in(Meters)));
+
+    final var angle = target.minus(corner).getAngle();
+    final var position = new Translation2d(shootDistanceToHub.get(), 0).rotateBy(angle);
+
+    final var robotRotation = angle.rotateBy(Rotation2d.k180deg);
+    final var offsetXY = kShooterOffsetXY.rotateBy(robotRotation);
+
+    return new Pose2d(target.minus(position).minus(offsetXY), robotRotation);
   }
 }

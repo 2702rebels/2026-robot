@@ -16,6 +16,7 @@ import com.ctre.phoenix6.signals.StaticFeedforwardSignValue;
 import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.math.Pair;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -24,6 +25,8 @@ import frc.robot.Constants;
 import frc.robot.lib.LoggedTalonFX;
 import frc.robot.lib.PhoenixUtil;
 import frc.robot.lib.Tunable;
+import java.util.Optional;
+import java.util.function.Supplier;
 
 public final class Shooter extends SubsystemBase {
   // MAKE SURE TO UPDATE THESE VALUES AFTER TUNING
@@ -40,8 +43,8 @@ public final class Shooter extends SubsystemBase {
 
   private static final double __kHoodParkAngle = 10;
 
-  private static final double __kHoodManual = 15;
-  private static final double __kFlywheelManual = 4000; // RPMs
+  private static final double __kHoodManual = 20;
+  private static final double __kFlywheelManual = 3450; // RPMs
 
   @Logged(name = "Flywheel/Leader", importance = Importance.INFO)
   private final LoggedTalonFX flywheelMotorLeader;
@@ -69,8 +72,17 @@ public final class Shooter extends SubsystemBase {
   private boolean initialized = false;
   private boolean hoodParked;
 
-  // manual mode used for testing
-  private boolean manual;
+  private static enum Mode {
+    kNone,
+    kManual,
+    kTracking,
+  }
+
+  private Mode mode = Mode.kNone;
+
+  // external parameters supplier in tracking mode
+  private Supplier<Optional<Pair<Double, Double>>> trackingParametersSupplier =
+      () -> Optional.empty();
 
   private static final double kFlywheelStatorCurrentLimit = 60.0;
   private static final double kHoodStatorCurrentLimit = 20.0;
@@ -158,7 +170,7 @@ public final class Shooter extends SubsystemBase {
     Tunable.bind("Flywheel", flywheelMotorLeader);
     Tunable.bind("Hood", hoodMotor);
 
-    manual = true; // FOR TESTING ONLY
+    mode = Mode.kTracking; // FOR TESTING ONLY
   }
 
   @Override
@@ -175,9 +187,23 @@ public final class Shooter extends SubsystemBase {
       }
     } else {
       if (enabled) {
-        if (manual) {
-          flywheelSetpoint = kFlywheelManual.get();
-          hoodSetpoint = Degrees.of(kHoodManual.get());
+        // TODO: remove in production
+        // mode = trackingEnabled.get() ? Mode.kTracking : Mode.kManual;
+
+        switch (mode) {
+          case kManual:
+            flywheelSetpoint = kFlywheelManual.get();
+            hoodSetpoint = Degrees.of(kHoodManual.get());
+            break;
+          case kTracking:
+            final var p = trackingParametersSupplier.get();
+            if (p.isPresent()) {
+              flywheelSetpoint = p.get().getSecond();
+              hoodSetpoint = Degrees.of(p.get().getFirst());
+            }
+            break;
+          default:
+            break;
         }
 
         flywheelMotorLeader.setControl(
@@ -232,38 +258,17 @@ public final class Shooter extends SubsystemBase {
 
   /** Disables the subsystem. */
   public Command disable() {
-    return runOnce(
-            () -> {
-              enabled = false;
-            })
-        .withName("ShooterDisable");
+    return runOnce(() -> enabled = false).withName("ShooterDisable");
   }
 
   /** Enables the subsystem. */
   public Command enable() {
-    return runOnce(
-            () -> {
-              enabled = true;
-            })
-        .withName("ShooterEnable");
+    return runOnce(() -> enabled = true).withName("ShooterEnable");
   }
 
   /** Parks hood for driving under the trench. */
   public Command parkHood() {
-    return runOnce(
-            () -> {
-              this.hoodParked = true;
-            })
-        .withName("ParkHood");
-  }
-
-  /** Releases hood if previously parked. */
-  public Command unparkHood() {
-    return runOnce(
-            () -> {
-              this.hoodParked = false;
-            })
-        .withName("UnparkHood");
+    return runEnd(() -> this.hoodParked = true, () -> this.hoodParked = false).withName("ParkHood");
   }
 
   /** Sets shooting parameters: hood angle and flwyheel velocity. */
@@ -276,9 +281,14 @@ public final class Shooter extends SubsystemBase {
         .withName("SetParameters");
   }
 
+  public void setTrackingSupplier(Supplier<Optional<Pair<Double, Double>>> supplier) {
+    trackingParametersSupplier = supplier;
+  }
+
   // spotless:off
   private static Tunable.DoubleValue kHoodParkAngle = Tunable.value("Hood/ParkAngle", __kHoodParkAngle);
   private static Tunable.DoubleValue kHoodManual = Tunable.value("Hood/Manual", __kHoodManual);
   private static Tunable.DoubleValue kFlywheelManual = Tunable.value("Flywheel/Manual", __kFlywheelManual);
+  private static Tunable.BooleanValue trackingEnabled = Tunable.value("Shooter/Tracking", false);
   // spotless:on
 }

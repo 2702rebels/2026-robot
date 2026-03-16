@@ -134,20 +134,12 @@ public final class Hopper extends SubsystemBase {
 
   /** Disables the subsystem. */
   public Command disable() {
-    return runOnce(
-            () -> {
-              enabled = false;
-            })
-        .withName("HopperDisable");
+    return runOnce(() -> enabled = false).withName("HopperDisable");
   }
 
   /** Enables the subsystem. */
   public Command enable() {
-    return runOnce(
-            () -> {
-              enabled = true;
-            })
-        .withName("HopperEnable");
+    return runOnce(() -> enabled = true).withName("HopperEnable");
   }
 
   // spotless:off

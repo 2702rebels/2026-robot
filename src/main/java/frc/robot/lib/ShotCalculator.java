@@ -44,9 +44,6 @@ public class ShotCalculator {
       double shooterAngle,
       double quality) {}
 
-  // offset to the center of the turret in meters
-  private static final Translation2d kOffsetXY = new Translation2d(0, 0);
-
   // solver tuning
   private static final int kMaxIterations = 10;
   private static final int kQualityIterations = 3;
@@ -56,6 +53,12 @@ public class ShotCalculator {
 
   // threshold for solver use, below this speed use direct aiming
   private static final double kMinSpeed = 0.1; // meters/second
+
+  public final Translation2d kOffsetXY;
+
+  public ShotCalculator(Translation2d offsetXY) {
+    kOffsetXY = offsetXY;
+  }
 
   // linear drag coefficient
   public double kDrag = 0;
@@ -180,7 +183,7 @@ public class ShotCalculator {
     final var velocityFiltered = speed < kMinSpeed;
     final var result =
         velocityFiltered
-            ? new SolverResult(distance, getEntry(distance).tof(), 0)
+            ? new SolverResult(distance, getEntry(distance).tof(), 1)
             : solve(distance, d.getX(), d.getY(), vx, vy);
 
     // save for next cycle's warm start

@@ -215,38 +215,22 @@ public final class Intake extends SubsystemBase {
 
   /** Disables the subsystem. */
   public Command disable() {
-    return runOnce(
-            () -> {
-              enabled = false;
-            })
-        .withName("IntakeDisable");
+    return runOnce(() -> enabled = false).withName("IntakeDisable");
   }
 
   /** Enables the subsystem. */
   public Command enable() {
-    return runOnce(
-            () -> {
-              enabled = true;
-            })
-        .withName("IntakeEnable");
+    return runOnce(() -> enabled = true).withName("IntakeEnable");
   }
 
   /** Deploys the intake. */
   public Command deploy() {
-    return runOnce(
-            () -> {
-              deployed = true;
-            })
-        .withName("IntakeDeploy");
+    return runOnce(() -> deployed = true).withName("IntakeDeploy");
   }
 
   /** Retracts the intake. */
   public Command retract() {
-    return runOnce(
-            () -> {
-              deployed = false;
-            })
-        .withName("IntakeRetract");
+    return runOnce(() -> deployed = false).withName("IntakeRetract");
   }
 
   /** Stops the intake roller. */

@@ -21,6 +21,7 @@ import frc.robot.lib.EasyCRTConfig;
 import frc.robot.lib.LoggedTalonFX;
 import frc.robot.lib.Tunable;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 public final class Turret extends SubsystemBase {
   // MAKE SURE TO UPDATE THESE VALUES AFTER TUNING
@@ -73,8 +74,16 @@ public final class Turret extends SubsystemBase {
   // indicates that the subsystem has been initialized by determining the position of the turret
   private boolean initialized = false;
 
-  // manual mode used for testing
-  private boolean manual;
+  private static enum Mode {
+    kNone,
+    kManual,
+    kTracking,
+  }
+
+  private Mode mode = Mode.kNone;
+
+  // external turrent position supplier in tracking mode
+  private Supplier<Optional<Angle>> trackingAngleSupplier = () -> Optional.empty();
 
   private static final double kTurretTeeth = 218.0;
   private static final double kEncoder1Ratio = kTurretTeeth / 17.0;
@@ -165,7 +174,7 @@ public final class Turret extends SubsystemBase {
                 .withMechanismRange(kMinRange, kMaxRange)
                 .withMatchTolerance(Degrees.of(kTolerance)));
 
-    manual = true; // FOR TESTING ONLY
+    mode = Mode.kTracking; // FOR TESTING ONLY
 
     // adjust initialization direction based on presumed position
     initDutyCycle *= (getPosition().in(Degrees) >= 0 ? -1 : 1);
@@ -320,8 +329,18 @@ public final class Turret extends SubsystemBase {
     if (!enabled) {
       motor.stopMotor();
     } else if (initialized) {
-      if (manual) {
-        setpoint = Degrees.of(kSetpointManual.get());
+      // TODO: remove in production
+      // mode = trackingEnabled.get() ? Mode.kTracking : Mode.kManual;
+
+      switch (mode) {
+        case kManual:
+          setpoint = Degrees.of(kSetpointManual.get());
+          break;
+        case kTracking:
+          setpoint = trackingAngleSupplier.get().orElse(Degrees.zero());
+          break;
+        default:
+          break;
       }
 
       motor.setControl(control.withPosition(toMotorPosition(setpoint)));
@@ -346,20 +365,12 @@ public final class Turret extends SubsystemBase {
 
   /** Disables the subsystem. */
   public Command disable() {
-    return runOnce(
-            () -> {
-              enabled = false;
-            })
-        .withName("TurretDisable");
+    return runOnce(() -> enabled = false).withName("TurretDisable");
   }
 
   /** Enables the subsystem. */
   public Command enable() {
-    return runOnce(
-            () -> {
-              enabled = true;
-            })
-        .withName("TurretEnable");
+    return runOnce(() -> enabled = true).withName("TurretEnable");
   }
 
   /** Sets turret position. */
@@ -383,7 +394,12 @@ public final class Turret extends SubsystemBase {
     return !initialized && hasSensors();
   }
 
+  public void setTrackingSupplier(Supplier<Optional<Angle>> supplier) {
+    trackingAngleSupplier = supplier;
+  }
+
   // spotless:off
   private static Tunable.DoubleValue kSetpointManual = Tunable.value("Turret/Manual", __kSetpointManual);
+  private static Tunable.BooleanValue trackingEnabled = Tunable.value("Turret/Tracking", false);
   // spotless:on
 }

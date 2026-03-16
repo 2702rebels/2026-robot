@@ -58,7 +58,7 @@ public class TunerConstants {
   // Voltage: new
   // Slot0Configs().withKP(0.16).withKI(0).withKD(0).withKS(0.1).withKV(0.124).withKA(0.01)
   private static final Slot0Configs driveGains =
-      new Slot0Configs().withKP(9.5).withKI(0).withKD(0).withKS(4.5).withKV(0).withKA(0);
+      new Slot0Configs().withKP(9).withKI(0).withKD(0).withKS(4.5).withKV(0).withKA(0);
 
   // The closed-loop output type to use for the steer motors;
   // This affects the PID/FF gains for the steer motors
