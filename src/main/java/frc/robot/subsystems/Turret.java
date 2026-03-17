@@ -86,8 +86,8 @@ public final class Turret extends SubsystemBase {
   private static final double kEncoder1Ratio = kTurretTeeth / 17.0;
   private static final double kEncoder2Ratio = kTurretTeeth / 19.0;
 
-  private static final Angle kEncoder1Offset = Degrees.of(-92.3);
-  private static final Angle kEncoder2Offset = Degrees.of(-173.0);
+  private static final Angle kEncoder1Offset = Degrees.of(-354.7);
+  private static final Angle kEncoder2Offset = Degrees.of(-185.7);
   private static final Angle kMinRange = Degrees.of(-260.0);
   private static final Angle kMaxRange = Degrees.of(260.0);
 
