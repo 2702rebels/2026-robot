@@ -202,6 +202,8 @@ public final class Shooter extends SubsystemBase {
           setVelocity(0);
         }
       }
+    } else {
+      setVelocity(0);
     }
 
     if (flywheelSetpoint > 0) {
