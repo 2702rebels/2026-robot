@@ -30,6 +30,12 @@ public final class Field {
   /** Middle of the starting line */
   public static final Distance kStartingLineX = Meters.of(4);
 
+  /** Neutral zone near side */
+  public static final Distance kNeutralZoneNear = kFieldHalfLength.minus(Inches.of(120));
+
+  /** Neutral zone far side */
+  public static final Distance kNeutralZoneFar = kFieldHalfLength.minus(Inches.of(120));
+
   /** Middle of the hub center line */
   public static final Distance kHubLineX = Meters.of(4.625);
 
@@ -154,7 +160,4 @@ public final class Field {
       return shouldFlip() ? flip(translation) : translation;
     };
   }
-
-  public static Function<Translation2d, Translation2d> fieldTranslation =
-      createFieldTranslationSupplier();
 }

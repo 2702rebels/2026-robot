@@ -95,8 +95,10 @@ public class Robot extends TimedRobot {
                 config.errorHandler = ErrorHandler.crashOnError();
               }
 
-              // change to CRITICAL for more detailed logging (where supported)
-              config.minimumImportance = Logged.Importance.DEBUG;
+              config.minimumImportance =
+                  Constants.DeploymentMode == Constants.Deployment.kCompetition
+                      ? Logged.Importance.INFO
+                      : Logged.Importance.DEBUG;
             });
 
         Epilogue.bind(this);

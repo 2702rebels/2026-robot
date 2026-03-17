@@ -38,10 +38,10 @@ public final class Turret extends SubsystemBase {
 
   private static final double __kSetpointManual = 0;
 
-  @Logged(name = "Motor", importance = Importance.INFO)
+  @Logged(name = "Motor", importance = Importance.CRITICAL)
   private final LoggedTalonFX motor;
 
-  @Logged(name = "Setpoint", importance = Importance.INFO)
+  @Logged(name = "Setpoint", importance = Importance.DEBUG)
   private Angle setpoint = Degrees.zero();
 
   @Logged(name = "CrtAngle", importance = Importance.DEBUG)
@@ -68,9 +68,6 @@ public final class Turret extends SubsystemBase {
   private final CANduit.PWMInput encoder2;
   private final EasyCRT crt;
 
-  @Logged(name = "Enabled", importance = Importance.INFO)
-  private boolean enabled = false;
-
   // indicates that the subsystem has been initialized by determining the position of the turret
   private boolean initialized = false;
 
@@ -96,7 +93,7 @@ public final class Turret extends SubsystemBase {
 
   private static final double kStatorCurrentLimit = 60.0;
   private static final double kConversionFactor = kTurretTeeth * 3.0 / 22.0;
-  private static final double kMinPosition = -150.0; // degrees
+  private static final double kMinPosition = -180.0; // degrees
   private static final double kMaxPosition = 180.0; // degrees
   private static final double kTolerance = 1.0; // degrees
 
@@ -283,27 +280,27 @@ public final class Turret extends SubsystemBase {
     }
   }
 
-  @Logged(name = "Encoder1/Angle", importance = Importance.INFO)
+  @Logged(name = "Encoder1/Angle", importance = Importance.DEBUG)
   public Angle getEncoder1Angle() {
     return Rotations.of(encoder1Filter.calculate(getEncoderRotations(encoder1)));
   }
 
-  @Logged(name = "Encoder2/Angle", importance = Importance.INFO)
+  @Logged(name = "Encoder2/Angle", importance = Importance.DEBUG)
   public Angle getEncoder2Angle() {
     return Rotations.of(encoder2Filter.calculate(getEncoderRotations(encoder2)));
   }
 
-  @Logged(name = "Encoder1/Configured", importance = Importance.INFO)
+  @Logged(name = "Encoder1/Configured", importance = Importance.CRITICAL)
   public boolean isEncoder1Configured() {
     return encoder1.isConfigured();
   }
 
-  @Logged(name = "Encoder2/Configured", importance = Importance.INFO)
+  @Logged(name = "Encoder2/Configured", importance = Importance.CRITICAL)
   public boolean isEncoder2Configured() {
     return encoder2.isConfigured();
   }
 
-  @Logged(name = "HasSensors", importance = Importance.INFO)
+  @Logged(name = "HasSensors", importance = Importance.CRITICAL)
   public boolean hasSensors() {
     return encoder1.isConfigured()
         && encoder2.isConfigured()
@@ -318,68 +315,41 @@ public final class Turret extends SubsystemBase {
       // is already configured and retries configuration otherwise
       encoder1.configure(false);
       encoder2.configure(false);
-    }
 
-    // ensure both encoders are reporting valid readings
-    if (hasSensors()) {
-      crtStatus = crt.getLastStatus();
-      crt.getAngleOptional().ifPresent(this::estimateTurretAngle);
-    }
-
-    if (!enabled) {
-      motor.stopMotor();
-    } else if (initialized) {
-      // TODO: remove in production
-      // mode = trackingEnabled.get() ? Mode.kTracking : Mode.kManual;
-
-      switch (mode) {
-        case kManual:
-          setpoint = Degrees.of(kSetpointManual.get());
-          break;
-        case kTracking:
-          setpoint = trackingAngleSupplier.get().orElse(Degrees.zero());
-          break;
-        default:
-          break;
+      // ensure both encoders are reporting valid readings
+      if (hasSensors()) {
+        crtStatus = crt.getLastStatus();
+        crt.getAngleOptional().ifPresent(this::estimateTurretAngle);
+      }
+    } else {
+      if (kSetpointManualOverride.get()) {
+        setAngle(Degrees.of(kSetpointManual.get()));
+      } else {
+        trackingAngleSupplier.get().ifPresent(this::setAngle);
       }
 
       motor.setControl(control.withPosition(toMotorPosition(setpoint)));
     }
   }
 
-  @Logged(name = "Initialized", importance = Importance.INFO)
+  public void setAngle(Angle value) {
+    setpoint = Degrees.of(MathUtil.clamp(value.in(Degrees), kMinPosition, kMaxPosition));
+  }
+
+  @Logged(name = "Initialized", importance = Importance.CRITICAL)
   public boolean isInitialized() {
     return initialized;
   }
 
   /** Determines whether the subsystem is at its commanded setpoint. */
-  @Logged(name = "AtSetpoint", importance = Importance.INFO)
+  @Logged(name = "AtSetpoint", importance = Importance.CRITICAL)
   public boolean isAtSetpoint() {
     return MathUtil.isNear(setpoint.in(Degrees), getPosition().in(Degrees), kTolerance);
   }
 
-  @Logged(name = "Position", importance = Importance.INFO)
+  @Logged(name = "Position", importance = Importance.CRITICAL)
   public Angle getPosition() {
     return motor.getMotorPosition().div(kConversionFactor);
-  }
-
-  /** Disables the subsystem. */
-  public Command disable() {
-    return runOnce(() -> enabled = false).withName("TurretDisable");
-  }
-
-  /** Enables the subsystem. */
-  public Command enable() {
-    return runOnce(() -> enabled = true).withName("TurretEnable");
-  }
-
-  /** Sets turret position. */
-  public Command setPosition(double position) {
-    return runOnce(
-            () -> {
-              setpoint = Degrees.of(MathUtil.clamp(position, kMinPosition, kMaxPosition));
-            })
-        .withName("SetPosition");
   }
 
   /** Initializes turret position. */
@@ -400,6 +370,6 @@ public final class Turret extends SubsystemBase {
 
   // spotless:off
   private static Tunable.DoubleValue kSetpointManual = Tunable.value("Turret/Manual", __kSetpointManual);
-  private static Tunable.BooleanValue trackingEnabled = Tunable.value("Turret/Tracking", false);
+  private static Tunable.BooleanValue kSetpointManualOverride = Tunable.value("Turret/ManualOverride", false);
   // spotless:on
 }

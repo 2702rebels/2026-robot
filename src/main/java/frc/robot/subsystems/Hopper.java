@@ -8,7 +8,6 @@ import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
 import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
-import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
@@ -32,25 +31,23 @@ public final class Hopper extends SubsystemBase {
   private static final double __kSpindexerVelocity = 700; // RPMs
   private static final double __kFeedVelocity = 1500; // RPMs
 
-  @Logged(name = "Spindexer", importance = Importance.INFO)
+  @Logged(name = "Spindexer", importance = Importance.CRITICAL)
   private final LoggedTalonFX spindexerMotor;
 
-  @Logged(name = "Feed", importance = Importance.INFO)
+  @Logged(name = "Feed", importance = Importance.CRITICAL)
   private final LoggedTalonFX feedMotor;
 
   private final VelocityTorqueCurrentFOC spindexerControl;
   private final VelocityTorqueCurrentFOC feedControl;
 
-  @Logged(name = "Enabled", importance = Importance.INFO)
+  @Logged(name = "Enabled", importance = Importance.CRITICAL)
   private boolean enabled = false;
 
   private static final double kSpindexerStatorCurrentLimit = 40.0;
   private static final double kFeedStatorCurrentLimit = 80.0;
 
   private static final double kSpindexerConversionFactor = (36.0 / 14.0) * (72.0 / 24.0);
-  private static final double kSpindexerTolerance = 15; // RPMs
   private static final double kFeedConversionFactor = 2.0;
-  private static final double kFeedTolerance = 15; // RPMs
 
   public Hopper(CANBus canbus) {
     spindexerMotor =
@@ -115,31 +112,19 @@ public final class Hopper extends SubsystemBase {
     }
   }
 
-  /** Determines whether the subsystem is at its nominal state. */
-  @Logged(name = "Nominal", importance = Importance.INFO)
-  public boolean isNominal() {
-    return MathUtil.isNear(kSpindexerVelocity.get(), getSpindexerVelocity(), kSpindexerTolerance)
-        && MathUtil.isNear(kFeedVelocity.get(), getFeedVelocity(), kFeedTolerance);
-  }
-
-  @Logged(name = "Velocity/Spindexer", importance = Importance.INFO)
+  @Logged(name = "Velocity/Spindexer", importance = Importance.CRITICAL)
   public double getSpindexerVelocity() {
     return spindexerMotor.getMotorVelocity().in(RPM) / kSpindexerConversionFactor;
   }
 
-  @Logged(name = "Velocity/Feed", importance = Importance.INFO)
+  @Logged(name = "Velocity/Feed", importance = Importance.CRITICAL)
   public double getFeedVelocity() {
     return feedMotor.getMotorVelocity().in(RPM) / kFeedConversionFactor;
   }
 
-  /** Disables the subsystem. */
-  public Command disable() {
-    return runOnce(() -> enabled = false).withName("HopperDisable");
-  }
-
   /** Enables the subsystem. */
   public Command enable() {
-    return runOnce(() -> enabled = true).withName("HopperEnable");
+    return runEnd(() -> enabled = true, () -> enabled = false).withName("EnableShooter");
   }
 
   // spotless:off

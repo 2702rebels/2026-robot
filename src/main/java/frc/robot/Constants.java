@@ -11,6 +11,20 @@ import edu.wpi.first.units.measure.Time;
 import frc.robot.generated.TunerConstants;
 
 public final class Constants {
+  /** Deployment mode */
+  public static enum Deployment {
+    /** Development mode, all tunable values are available and extended logging is enabled */
+    kDevelopment,
+    /** Compeition mode, only critical tunable values are available and logging is reduced */
+    kCompetition,
+  }
+
+  /**
+   * Target deployment mode. This should be set to kCompetition when compiling code for competition
+   * use to reduce the performance impact of the telemetry.
+   */
+  public static final Deployment DeploymentMode = Deployment.kDevelopment;
+
   public static final class Settings {
     /** RIO Logging */
     public static final boolean rioLoggingEnabled = true;

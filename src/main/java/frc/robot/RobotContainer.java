@@ -20,7 +20,6 @@ import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
-import frc.robot.RobotState.Intent;
 import frc.robot.generated.TunerConstants;
 import frc.robot.lib.CANduit;
 import frc.robot.lib.GamePhaseTracker;
@@ -46,25 +45,25 @@ public class RobotContainer {
   private final LedFeedback ledFeedback = new LedFeedback(led, this::getDefaultLedFeedback);
   private final LedVision ledVision = new LedVision(led, this::getDefaultVisionFeedback);
 
-  @Logged(name = "CANduit", importance = Importance.INFO)
+  @Logged(name = "CANduit", importance = Importance.CRITICAL)
   private final CANduit canduit;
 
-  @Logged(name = "AprilTagDetector", importance = Importance.INFO)
+  @Logged(name = "AprilTagDetector", importance = Importance.CRITICAL)
   private final AprilTagDetector aprilTagDetector = new AprilTagDetector();
 
-  @Logged(name = "Intake", importance = Importance.INFO)
+  @Logged(name = "Intake", importance = Importance.CRITICAL)
   private final Intake intake = new Intake(TunerConstants.kCANBus);
 
-  @Logged(name = "Hopper", importance = Importance.INFO)
+  @Logged(name = "Hopper", importance = Importance.CRITICAL)
   private final Hopper hopper = new Hopper(TunerConstants.kCANBus);
 
-  @Logged(name = "Turret", importance = Importance.INFO)
+  @Logged(name = "Turret", importance = Importance.CRITICAL)
   private final Turret turret;
 
-  @Logged(name = "Shooter", importance = Importance.INFO)
+  @Logged(name = "Shooter", importance = Importance.CRITICAL)
   private final Shooter shooter = new Shooter(TunerConstants.kCANBus);
 
-  @Logged(name = "Climb", importance = Importance.INFO)
+  @Logged(name = "Climb", importance = Importance.CRITICAL)
   private final Climb climb;
 
   private static final Trigger robotEnabled = new Trigger(DriverStation::isEnabled);
@@ -75,8 +74,13 @@ public class RobotContainer {
   // button mappings
   private final Trigger resetOrientationButton = controllerDriver.start();
   private final Trigger brakeButton = controllerDriver.b();
-  private final Trigger resetIntentButton = controllerDriver.x();
-  private final Trigger enableButton = controllerDriver.a();
+  private final Trigger resetButton = controllerDriver.x();
+  private final Trigger enableIntakeButton = controllerDriver.a();
+  private final Trigger shootButton = controllerDriver.rightTrigger();
+  private final Trigger parkHoodButton = controllerDriver.rightBumper();
+  private final Trigger climbButton = controllerDriver.leftBumper();
+  private final Trigger climbUpButton = controllerDriver.povUp();
+  private final Trigger climbDownButton = controllerDriver.povDown();
 
   // alerts
   private static final Time kMissingAutoWinAllianceAlertThreshold = Seconds.of(1);
@@ -149,28 +153,20 @@ public class RobotContainer {
 
     drivetrain.registerTelemetry(state::updateSwerveTelemetry);
 
-    controllerDriver
-        .rightTrigger()
-        .onTrue(Commands.parallel(hopper.enable(), shooter.enable(), turret.enable()));
+    shootButton
+        .and(turret::isAtSetpoint)
+        .whileTrue(Commands.parallel(hopper.enable(), shooter.enable()));
 
-    enableButton.onTrue(intake.enable());
+    enableIntakeButton.onTrue(intake.enable());
+    resetButton.onTrue(intake.disable());
 
-    // enableButton.onTrue(hopper.enable().andThen(shooter.enable()));
-    // enableButton.onTrue(shooter.enable().andThen(turret.enable()));
-    // enableButton.onTrue(turret.enable());
-    // enableButton.onTrue(hopper.enable());
+    climbUpButton.and(() -> !climb.isEngaged()).onTrue(climb.extend());
+    climbDownButton.and(() -> !climb.isEngaged()).onTrue(climb.retract());
 
-    resetIntentButton.onTrue(state.setIntent(Intent.kNone));
-    resetIntentButton.onTrue(
-        Commands.parallel(intake.disable(), hopper.disable(), turret.disable(), shooter.disable()));
+    parkHoodButton.whileTrue(shooter.parkHood());
 
-    controllerDriver.povUp().and(() -> !climb.isEngaged()).onTrue(climb.extend());
-    controllerDriver.povDown().and(() -> !climb.isEngaged()).onTrue(climb.retract());
-
-    controllerDriver.rightBumper().whileTrue(shooter.parkHood());
-
-    controllerDriver.leftBumper().and(climb::isReady).onTrue(climb.engage());
-    controllerDriver.x().and(climb::isEngaged).onTrue(climb.disengage());
+    climbButton.and(climb::isReady).onTrue(climb.engage());
+    resetButton.and(climb::isEngaged).onTrue(climb.disengage());
 
     // controllerDriver.povLeft().onTrue(drivetrain.align(() -> new
     // APTarget(state.getShootPose())));
@@ -187,9 +183,7 @@ public class RobotContainer {
   /** Use this method to configure trigger bindings. */
   private void configureTriggers() {
     // auto-initialize turret on enable
-    robotEnabled
-        .and(turret::shouldInitialize)
-        .onTrue(turret.enable().andThen(turret.initialize()).andThen(turret.disable()));
+    robotEnabled.and(turret::shouldInitialize).onTrue(turret.initialize());
 
     RobotModeTriggers.autonomous().onTrue(Commands.runOnce(gamePhaseTracker::startPeriod));
     RobotModeTriggers.teleop().onTrue(Commands.runOnce(gamePhaseTracker::startPeriod));
@@ -250,10 +244,7 @@ public class RobotContainer {
 
   /** Returns feedback for LED subsystem */
   private LedFeedback.Type getDefaultLedFeedback() {
-    switch (state.intent) {
-      default:
-        return LedFeedback.Type.kNone;
-    }
+    return LedFeedback.Type.kNone;
   }
 
   private LedVision.Type getDefaultVisionFeedback() {

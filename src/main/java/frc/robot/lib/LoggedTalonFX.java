@@ -94,22 +94,22 @@ public class LoggedTalonFX extends TalonFX {
 
   protected void configure(TalonFXConfiguration config) {}
 
-  @Logged(name = "Temperature", importance = Importance.INFO)
+  @Logged(name = "Temperature", importance = Importance.CRITICAL)
   public double getMotorTemperature() {
     return temperatureSignal.getValue().in(Celsius);
   }
 
-  @Logged(name = "DutyCycle", importance = Importance.DEBUG)
+  @Logged(name = "DutyCycle", importance = Importance.CRITICAL)
   public double getMotorDutyCycle() {
     return dutyCycleSignal.getValue();
   }
 
-  @Logged(name = "TorqueCurrentAmps", importance = Importance.INFO)
+  @Logged(name = "TorqueCurrentAmps", importance = Importance.CRITICAL)
   public double getTorqueCurrentAmps() {
     return torqueCurrentSignal.getValue().in(Amps);
   }
 
-  @Logged(name = "SupplyCurrentAmps", importance = Importance.INFO)
+  @Logged(name = "SupplyCurrentAmps", importance = Importance.CRITICAL)
   public double getSupplyCurrentAmps() {
     return supplyCurrentSignal.getValue().in(Amps);
   }

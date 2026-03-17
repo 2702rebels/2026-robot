@@ -45,19 +45,16 @@ public final class Climb extends SubsystemBase {
   private static final double __kMaxAcceleration =
       __kMaxVelocity / 0.2; // rot/sec^2 (200ms to max velocity)
 
-  @Logged(name = "Motor", importance = Importance.INFO)
+  @Logged(name = "Motor", importance = Importance.CRITICAL)
   private final LoggedTalonFXS motor;
 
-  @Logged(name = "Setpoint", importance = Importance.INFO)
+  @Logged(name = "Setpoint", importance = Importance.DEBUG)
   private Distance setpoint = Inches.zero();
 
   private final PositionVoltage control;
   private final MotionMagicVoltage controlLower;
 
   private final CANduit.PWMInput sensor;
-
-  @Logged(name = "Enabled", importance = Importance.INFO)
-  private boolean enabled = true;
 
   // indicates that the subsystem has been initialized by zeroing the position of the climb
   private boolean initialized = false;
@@ -72,9 +69,6 @@ public final class Climb extends SubsystemBase {
 
   private static final double kStatorCurrentLimit = 100.0;
   private static final double kTolerance = 0.5; // inches
-
-  // manual mode used for testing
-  private boolean manual;
 
   public Climb(CANBus canbus, CANduit canduit) {
     motor =
@@ -121,8 +115,6 @@ public final class Climb extends SubsystemBase {
 
     // NOTE: currently disabled
     sensor = canduit.createPWMInput(Constants.CANduitID.CLIMB_SENSOR, true);
-
-    // manual = true; // FOR TESTING ONLY
   }
 
   /**
@@ -139,7 +131,7 @@ public final class Climb extends SubsystemBase {
 
   @Override
   public void periodic() {
-    // run initialization sequence regardless of subsystem disabled state
+    // run initialization sequence to home the climb
     if (!initialized) {
       motor.set(-0.05);
 
@@ -153,21 +145,17 @@ public final class Climb extends SubsystemBase {
         initialized = true;
       }
     } else {
-      if (enabled) {
-        if (manual) {
-          setpoint = Inches.of(kPositionManual.get());
-        }
-
-        // use profiled motion if the climb is engaged to lower the robot
-        // otherwise, use simple PID to jump to the setpoint
-        final var position = setpoint.in(Inches) * kConversionFactor;
-        motor.setControl(
-            state == State.kEngaged
-                ? controlLower.withPosition(position)
-                : control.withPosition(position));
-      } else {
-        motor.stopMotor();
+      if (kPositionManualOverride.get()) {
+        setpoint = Inches.of(kPositionManual.get());
       }
+
+      // use profiled motion if the climb is engaged to lower the robot
+      // otherwise, use simple PID to jump to the setpoint
+      final var position = setpoint.in(Inches) * kConversionFactor;
+      motor.setControl(
+          state == State.kEngaged
+              ? controlLower.withPosition(position)
+              : control.withPosition(position));
     }
 
     // reset "engaged" flag once the hook is fully extended
@@ -194,45 +182,35 @@ public final class Climb extends SubsystemBase {
 
   private static final Distance kDistanceNotAvailable = Meters.of(-1);
 
-  @Logged(name = "SensorDistance", importance = Importance.INFO)
+  @Logged(name = "SensorDistance", importance = Importance.CRITICAL)
   public Distance getSensorDistance() {
     return sensor.hasValue() ? getSensorDistance(sensor) : kDistanceNotAvailable;
   }
 
   /** Determines whether the subsystem is at its commanded setpoint. */
-  @Logged(name = "AtSetpoint", importance = Importance.INFO)
+  @Logged(name = "AtSetpoint", importance = Importance.CRITICAL)
   public boolean isAtSetpoint() {
     return MathUtil.isNear(setpoint.in(Inches), getPosition().in(Inches), kTolerance);
   }
 
-  @Logged(name = "Position", importance = Importance.INFO)
+  @Logged(name = "Position", importance = Importance.CRITICAL)
   public Distance getPosition() {
     return Inches.of(motor.getMotorPosition().in(Rotations) / kConversionFactor);
   }
 
-  @Logged(name = "Initialized", importance = Importance.INFO)
+  @Logged(name = "Initialized", importance = Importance.CRITICAL)
   public boolean isInitialized() {
     return initialized;
   }
 
-  @Logged(name = "Ready", importance = Importance.INFO)
+  @Logged(name = "Ready", importance = Importance.CRITICAL)
   public boolean isReady() {
     return MathUtil.isNear(kPositionExtended.get(), getPosition().in(Inches), kTolerance);
   }
 
-  @Logged(name = "Engaged", importance = Importance.INFO)
+  @Logged(name = "Engaged", importance = Importance.CRITICAL)
   public boolean isEngaged() {
     return state == State.kEngaged;
-  }
-
-  /** Disables the subsystem. */
-  public Command disable() {
-    return runOnce(() -> enabled = false).withName("ClimbDisable");
-  }
-
-  /** Enables the subsystem. */
-  public Command enable() {
-    return runOnce(() -> enabled = true).withName("ClimbEnable");
   }
 
   /** Extends the hook. */
@@ -292,5 +270,6 @@ public final class Climb extends SubsystemBase {
   private static Tunable.DoubleValue kPositionRetracted = Tunable.value("Climb/Retracted", __kPositionRetracted);
   private static Tunable.DoubleValue kPositionEngaged = Tunable.value("Climb/Engaged", __kPositionEngaged);
   private static Tunable.DoubleValue kPositionManual = Tunable.value("Climb/Manual", __kPositionManual);
+  private static Tunable.BooleanValue kPositionManualOverride = Tunable.value("Climb/ManualOverride", false);
   // spotless:on
 }

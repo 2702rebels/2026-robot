@@ -43,23 +43,23 @@ public final class Intake extends SubsystemBase {
   private static final double __kHoverPosition = 20; // degrees
   private static final double __kDeployPosition = 0; // degrees
 
-  @Logged(name = "Roller", importance = Importance.INFO)
+  @Logged(name = "Roller", importance = Importance.CRITICAL)
   private final LoggedTalonFX rollerMotor;
 
-  @Logged(name = "Arm", importance = Importance.INFO)
+  @Logged(name = "Arm", importance = Importance.CRITICAL)
   private final LoggedTalonFX armMotor;
 
-  @Logged(name = "Setpoint/Arm", importance = Importance.INFO)
+  @Logged(name = "Setpoint/Arm", importance = Importance.DEBUG)
   private Angle armSetpoint = Degrees.of(0);
 
-  @Logged(name = "Setpoint/Roller", importance = Importance.INFO)
+  @Logged(name = "Setpoint/Roller", importance = Importance.DEBUG)
   private double rollerSetpoint = 0;
 
   private final VelocityTorqueCurrentFOC rollerControl;
   private final PositionTorqueCurrentFOC armMoveControl;
   private final PositionTorqueCurrentFOC armHoldControl;
 
-  @Logged(name = "Enabled", importance = Importance.INFO)
+  @Logged(name = "Enabled", importance = Importance.CRITICAL)
   private boolean enabled = false;
 
   private boolean deployed;
@@ -191,24 +191,24 @@ public final class Intake extends SubsystemBase {
     }
   }
 
-  @Logged(name = "Deployed", importance = Importance.INFO)
+  @Logged(name = "Deployed", importance = Importance.CRITICAL)
   public boolean isDeployed() {
     return deployed;
   }
 
   /** Determines whether the subsystem is at its nominal state. */
-  @Logged(name = "Nominal", importance = Importance.INFO)
+  @Logged(name = "Nominal", importance = Importance.CRITICAL)
   public boolean isNominal() {
     return MathUtil.isNear(armSetpoint.in(Degrees), getAngle().in(Degrees), kArmTolerance)
         && MathUtil.isNear(rollerSetpoint, getVelocity(), kRollerTolerance);
   }
 
-  @Logged(name = "Velocity", importance = Importance.INFO)
+  @Logged(name = "Velocity", importance = Importance.CRITICAL)
   public double getVelocity() {
     return rollerMotor.getMotorVelocity().in(RPM) / kRollerConversionFactor;
   }
 
-  @Logged(name = "Angle", importance = Importance.INFO)
+  @Logged(name = "Angle", importance = Importance.CRITICAL)
   public Angle getAngle() {
     return armMotor.getMotorPosition();
   }

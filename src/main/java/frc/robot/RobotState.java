@@ -27,8 +27,6 @@ import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.units.measure.Time;
 import edu.wpi.first.units.measure.Voltage;
 import edu.wpi.first.wpilibj.RobotController;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.robot.generated.TunerConstants;
 import frc.robot.lib.GamePhaseTracker.Phase;
@@ -110,7 +108,6 @@ public class RobotState {
   // external game phase supplier
   private Supplier<PhaseInfo> phaseInfoSupplier;
 
-  private Voltage batteryVoltage = Volts.zero();
   private long visionPoseTimestamp = -1;
   private Pose2d visionPose = Pose2d.kZero;
   private Phase phase;
@@ -166,7 +163,7 @@ public class RobotState {
   }
 
   /** Odometry trust (0 - no trust, 1 - full trust) */
-  @Logged(name = "OdometryTrust", importance = Importance.INFO)
+  @Logged(name = "OdometryTrust", importance = Importance.CRITICAL)
   private double odometryTrust = 0; // no trust initially
 
   /** Odometry frequency in Hz */
@@ -174,25 +171,15 @@ public class RobotState {
   private double odometryFrequency;
 
   /** Battery voltage */
-  @Logged(name = "BatteryVoltage", importance = Importance.INFO)
-  public Voltage getBatteryVoltage() {
-    return batteryVoltage;
-  }
+  @Logged(name = "BatteryVoltage", importance = Importance.CRITICAL)
+  private Voltage batteryVoltage = Volts.zero();
 
   /** Low battery condition */
-  @Logged(name = "IsLowBattery", importance = Importance.INFO)
+  @Logged(name = "IsLowBattery", importance = Importance.CRITICAL)
   public boolean isLowBattery() {
     final var v = batteryVoltage.in(Volts);
     return v > 0 && v < kLowBatteryVoltage;
   }
-
-  public static enum Intent {
-    kNone,
-  }
-
-  /** Robot intent */
-  @Logged(name = "Intent", importance = Importance.CRITICAL)
-  public Intent intent = Intent.kNone;
 
   /** Fused robot pose */
   @Logged(name = "RobotPose", importance = Importance.CRITICAL)
@@ -207,7 +194,6 @@ public class RobotState {
   }
 
   /** Age (milliseconds) of the most recent vision pose */
-  @Logged(name = "VisionPoseAgeMS", importance = Importance.DEBUG)
   public double getVisionPoseAge() {
     return visionPoseTimestamp > 0
         ? (RobotController.getTime() - visionPoseTimestamp) / 1000.0
@@ -215,65 +201,62 @@ public class RobotState {
   }
 
   /** Recent vision pose indicator */
-  @Logged(name = "HasRecentVisionPose", importance = Importance.INFO)
+  @Logged(name = "HasRecentVisionPose", importance = Importance.CRITICAL)
   public boolean hasRecentVisionPose() {
     final var age = getVisionPoseAge();
     return age >= 0 && age < 100;
   }
 
   /** Roll angle */
-  @Logged(name = "Roll", importance = Importance.INFO)
+  @Logged(name = "Roll", importance = Importance.CRITICAL)
   public Angle getRoll() {
     return drivetrain.getRoll();
   }
 
   /** Pitch angle */
-  @Logged(name = "Pitch", importance = Importance.INFO)
+  @Logged(name = "Pitch", importance = Importance.CRITICAL)
   public Angle getPitch() {
     return drivetrain.getPitch();
   }
 
   /** Orientation lock */
-  @Logged(name = "HasOrientationLock", importance = Importance.INFO)
+  @Logged(name = "HasOrientationLock", importance = Importance.CRITICAL)
   public boolean hasOrientationLock() {
     return drivetrain.hasOrientationLock();
   }
 
-  // spotless:off
-  @Logged(name = "Idle", importance = Importance.INFO)
-  public final Trigger idle = new Trigger(() -> intent == Intent.kNone);
-
-  @Logged(name = "IsPoseTrusted", importance = Importance.INFO)
+  /** Indicator that odometry pose can be trusted */
+  @Logged(name = "IsPoseTrusted", importance = Importance.CRITICAL)
   public final Trigger isPoseTrusted = new Trigger(() -> odometryTrust >= kOdometryTrustThreshold);
 
-  @Logged(name = "SwerveTelemetry", importance = Importance.DEBUG)
+  /** Integrated swerve telemetry structure */
+  @Logged(name = "SwerveTelemetry", importance = Importance.CRITICAL)
   public final SwerveTelemetry telemetry = new SwerveTelemetry();
-  // spotless:on
 
   /** Indicator that auto win alliance information is missing */
   @Logged(name = "MissingAutoWinAlliance", importance = Importance.CRITICAL)
   public boolean missingAutoWinAlliance;
 
   /** Current game phase */
-  @Logged(name = "Game/Phase")
+  @Logged(name = "Game/Phase", importance = Importance.CRITICAL)
   public Phase getGamePhase() {
     return phase;
   }
 
   /** Current game phase elapsed time */
-  @Logged(name = "Game/PhaseElapsedTime")
+  @Logged(name = "Game/PhaseElapsedTime", importance = Importance.CRITICAL)
   public Time getGamePhaseElapsedTime() {
     return phaseElapsedTime;
   }
 
   /** Current game phase remaining time */
-  @Logged(name = "Game/PhaseRemainingTime")
+  @Logged(name = "Game/PhaseRemainingTime", importance = Importance.CRITICAL)
   public Time getGamePhaseRemainingTime() {
     return phaseRemainingTime;
   }
 
   /** Hub active status */
-  @Logged(name = "Game/HubActive")
+  @Logged(name = "Game/HubActive", importance = Importance.CRITICAL)
   public boolean isHubActive() {
     return hubActive;
   }
@@ -292,15 +275,6 @@ public class RobotState {
   /** Binds external game phase supplier. */
   public void setGamePhaseSupplier(Supplier<PhaseInfo> value) {
     phaseInfoSupplier = value;
-  }
-
-  /** Commands intent of the robot. */
-  public Command setIntent(Intent intent) {
-    return Commands.runOnce(
-            () -> {
-              this.intent = intent;
-            })
-        .withName("SetIntent");
   }
 
   /** Resets odometry pose and restores trust. */

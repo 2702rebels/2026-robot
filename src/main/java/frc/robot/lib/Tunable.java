@@ -34,10 +34,18 @@ import java.util.function.Supplier;
 /**
  * Creates tunable parameters.
  *
- * <p>Borrowed from:
+ * <p>Idea borrowed from:
  * https://github.com/Greater-Rochester-Robotics/Reefscape2025-340/blob/main/src/main/java/org/team340/lib/util/Tunable.java
  */
 public final class Tunable {
+  /** Indicates that competition mode is enabled and only critical values should be made tunable. */
+  private static final boolean kCompetitionMode =
+      Constants.DeploymentMode == Constants.Deployment.kCompetition;
+
+  private Tunable() {
+    throw new AssertionError();
+  }
+
   private static final NetworkTable nt =
       NetworkTableInstance.getDefault().getTable(Constants.tunablePrefix);
 
@@ -51,8 +59,17 @@ public final class Tunable {
   /** Tunable double value. */
   public static final class DoubleValue implements DoubleSupplier, AutoCloseable {
     private final DoubleEntry entry;
+    private final double defaultValue;
 
-    private DoubleValue(String name, double defaultValue, Optional<DoubleConsumer> onChange) {
+    private DoubleValue(
+        String name, double defaultValue, boolean critical, Optional<DoubleConsumer> onChange) {
+      this.defaultValue = defaultValue;
+
+      if (kCompetitionMode && !critical) {
+        entry = null;
+        return;
+      }
+
       entry = nt.getDoubleTopic(name).getEntry(defaultValue);
       entry.setDefault(defaultValue);
 
@@ -68,11 +85,13 @@ public final class Tunable {
     }
 
     public double get() {
-      return entry.get();
+      return entry != null ? entry.get() : defaultValue;
     }
 
     public void set(double value) {
-      entry.set(value);
+      if (entry != null) {
+        entry.set(value);
+      }
     }
 
     @Override
@@ -82,16 +101,29 @@ public final class Tunable {
 
     @Override
     public void close() {
-      entry.close();
+      if (entry != null) {
+        entry.close();
+      }
     }
   }
 
   /** Tunable double array value. */
   public static final class DoubleArrayValue implements Supplier<double[]>, AutoCloseable {
     private final DoubleArrayEntry entry;
+    private final double[] defaultValue;
 
     private DoubleArrayValue(
-        String name, double[] defaultValue, Optional<Consumer<double[]>> onChange) {
+        String name,
+        double[] defaultValue,
+        boolean critical,
+        Optional<Consumer<double[]>> onChange) {
+      this.defaultValue = defaultValue;
+
+      if (kCompetitionMode && !critical) {
+        entry = null;
+        return;
+      }
+
       entry = nt.getDoubleArrayTopic(name).getEntry(defaultValue);
       entry.setDefault(defaultValue);
 
@@ -107,24 +139,37 @@ public final class Tunable {
     }
 
     public double[] get() {
-      return entry.get();
+      return entry != null ? entry.get() : defaultValue;
     }
 
     public void set(double[] value) {
-      entry.set(value);
+      if (entry != null) {
+        entry.set(value);
+      }
     }
 
     @Override
     public void close() {
-      entry.close();
+      if (entry != null) {
+        entry.close();
+      }
     }
   }
 
   /** Tunable boolean value. */
   public static final class BooleanValue implements BooleanSupplier, AutoCloseable {
     private final BooleanEntry entry;
+    private final boolean defaultValue;
 
-    private BooleanValue(String name, boolean defaultValue, Optional<BooleanConsumer> onChange) {
+    private BooleanValue(
+        String name, boolean defaultValue, boolean critical, Optional<BooleanConsumer> onChange) {
+      this.defaultValue = defaultValue;
+
+      if (kCompetitionMode && !critical) {
+        entry = null;
+        return;
+      }
+
       entry = nt.getBooleanTopic(name).getEntry(defaultValue);
       entry.setDefault(defaultValue);
 
@@ -140,11 +185,13 @@ public final class Tunable {
     }
 
     public boolean get() {
-      return entry.get();
+      return entry != null ? entry.get() : defaultValue;
     }
 
     public void set(boolean value) {
-      entry.set(value);
+      if (entry != null) {
+        entry.set(value);
+      }
     }
 
     @Override
@@ -154,16 +201,29 @@ public final class Tunable {
 
     @Override
     public void close() {
-      entry.close();
+      if (entry != null) {
+        entry.close();
+      }
     }
   }
 
   /** Tunable boolean array value. */
   public static final class BooleanArrayValue implements Supplier<boolean[]>, AutoCloseable {
     private final BooleanArrayEntry entry;
+    private final boolean[] defaultValue;
 
     private BooleanArrayValue(
-        String name, boolean[] defaultValue, Optional<Consumer<boolean[]>> onChange) {
+        String name,
+        boolean[] defaultValue,
+        boolean critical,
+        Optional<Consumer<boolean[]>> onChange) {
+      this.defaultValue = defaultValue;
+
+      if (kCompetitionMode && !critical) {
+        entry = null;
+        return;
+      }
+
       entry = nt.getBooleanArrayTopic(name).getEntry(defaultValue);
       entry.setDefault(defaultValue);
 
@@ -179,24 +239,37 @@ public final class Tunable {
     }
 
     public boolean[] get() {
-      return entry.get();
+      return entry != null ? entry.get() : defaultValue;
     }
 
     public void set(boolean[] value) {
-      entry.set(value);
+      if (entry != null) {
+        entry.set(value);
+      }
     }
 
     @Override
     public void close() {
-      entry.close();
+      if (entry != null) {
+        entry.close();
+      }
     }
   }
 
   /** Tunable string value. */
   public static final class StringValue implements Supplier<String>, AutoCloseable {
     private final StringEntry entry;
+    private final String defaultValue;
 
-    private StringValue(String name, String defaultValue, Optional<Consumer<String>> onChange) {
+    private StringValue(
+        String name, String defaultValue, boolean critical, Optional<Consumer<String>> onChange) {
+      this.defaultValue = defaultValue;
+
+      if (kCompetitionMode && !critical) {
+        entry = null;
+        return;
+      }
+
       entry = nt.getStringTopic(name).getEntry(defaultValue);
       entry.setDefault(defaultValue);
 
@@ -212,25 +285,40 @@ public final class Tunable {
     }
 
     public String get() {
-      return entry.get();
+      return entry != null ? entry.get() : defaultValue;
     }
 
     public void set(String value) {
-      entry.set(value);
+      if (entry != null) {
+        entry.set(value);
+      }
     }
 
     @Override
     public void close() {
-      entry.close();
+      if (entry != null) {
+        entry.close();
+      }
     }
   }
 
   /** Tunable string array value. */
   public static final class StringArrayValue implements Supplier<String[]>, AutoCloseable {
     private final StringArrayEntry entry;
+    private final String[] defaultValue;
 
     private StringArrayValue(
-        String name, String[] defaultValue, Optional<Consumer<String[]>> onChange) {
+        String name,
+        String[] defaultValue,
+        boolean critical,
+        Optional<Consumer<String[]>> onChange) {
+      this.defaultValue = defaultValue;
+
+      if (kCompetitionMode && !critical) {
+        entry = null;
+        return;
+      }
+
       entry = nt.getStringArrayTopic(name).getEntry(defaultValue);
       entry.setDefault(defaultValue);
 
@@ -246,25 +334,41 @@ public final class Tunable {
     }
 
     public String[] get() {
-      return entry.get();
+      return entry != null ? entry.get() : defaultValue;
     }
 
     public void set(String[] value) {
-      entry.set(value);
+      if (entry != null) {
+        entry.set(value);
+      }
     }
 
     @Override
     public void close() {
-      entry.close();
+      if (entry != null) {
+        entry.close();
+      }
     }
   }
 
   /** Tunable struct value. */
   public static final class StructValue<T> implements Supplier<T>, AutoCloseable {
     private final StructEntry<T> entry;
+    private final T defaultValue;
 
     private StructValue(
-        String name, Struct<T> struct, T defaultValue, Optional<Consumer<T>> onChange) {
+        String name,
+        Struct<T> struct,
+        T defaultValue,
+        boolean critical,
+        Optional<Consumer<T>> onChange) {
+      this.defaultValue = defaultValue;
+
+      if (kCompetitionMode && !critical) {
+        entry = null;
+        return;
+      }
+
       entry = nt.getStructTopic(name, struct).getEntry(defaultValue);
       entry.setDefault(defaultValue);
 
@@ -280,25 +384,41 @@ public final class Tunable {
     }
 
     public T get() {
-      return entry.get();
+      return entry != null ? entry.get() : defaultValue;
     }
 
     public void set(T value) {
-      entry.set(value);
+      if (entry != null) {
+        entry.set(value);
+      }
     }
 
     @Override
     public void close() {
-      entry.close();
+      if (entry != null) {
+        entry.close();
+      }
     }
   }
 
   /** Tunable struct array value. */
   public static final class StructArrayValue<T> implements Supplier<T[]>, AutoCloseable {
     private final StructArrayEntry<T> entry;
+    private final T[] defaultValue;
 
     private StructArrayValue(
-        String name, Struct<T> struct, T[] defaultValue, Optional<Consumer<T[]>> onChange) {
+        String name,
+        Struct<T> struct,
+        T[] defaultValue,
+        Boolean critical,
+        Optional<Consumer<T[]>> onChange) {
+      this.defaultValue = defaultValue;
+
+      if (kCompetitionMode && !critical) {
+        entry = null;
+        return;
+      }
+
       entry = nt.getStructArrayTopic(name, struct).getEntry(defaultValue);
       entry.setDefault(defaultValue);
 
@@ -314,129 +434,243 @@ public final class Tunable {
     }
 
     public T[] get() {
-      return entry.get();
+      return entry != null ? entry.get() : defaultValue;
     }
 
     public void set(T[] value) {
-      entry.set(value);
+      if (entry != null) {
+        entry.set(value);
+      }
     }
 
     @Override
     public void close() {
-      entry.close();
+      if (entry != null) {
+        entry.close();
+      }
     }
   }
 
-  /** Creates tunable double value with the specified default. */
+  /** Creates non-critical tunable double value with the specified default. */
   public static DoubleValue value(String name, double defaultValue) {
-    return new DoubleValue(name, defaultValue, Optional.empty());
+    return value(name, defaultValue, false);
+  }
+
+  /** Creates tunable double value with the specified default. */
+  public static DoubleValue value(String name, double defaultValue, boolean critical) {
+    return new DoubleValue(name, defaultValue, critical, Optional.empty());
+  }
+
+  /** Creates non-critical tunable double value with the specified default and change handler. */
+  public static DoubleValue value(String name, double defaultValue, DoubleConsumer onChange) {
+    return value(name, defaultValue, false, onChange);
   }
 
   /** Creates tunable double value with the specified default and change handler. */
-  public static DoubleValue value(String name, double defaultValue, DoubleConsumer onChange) {
-    return new DoubleValue(name, defaultValue, Optional.of(onChange));
+  public static DoubleValue value(
+      String name, double defaultValue, boolean critical, DoubleConsumer onChange) {
+    return new DoubleValue(name, defaultValue, critical, Optional.of(onChange));
+  }
+
+  /** Creates non-critical tunable double array value with the specified default. */
+  public static DoubleArrayValue value(String name, double[] defaultValue) {
+    return value(name, defaultValue, false);
   }
 
   /** Creates tunable double array value with the specified default. */
-  public static DoubleArrayValue value(String name, double[] defaultValue) {
-    return new DoubleArrayValue(name, defaultValue, Optional.empty());
+  public static DoubleArrayValue value(String name, double[] defaultValue, boolean critical) {
+    return new DoubleArrayValue(name, defaultValue, critical, Optional.empty());
+  }
+
+  /**
+   * Creates non-critical tunable double array value with the specified default and change handler.
+   */
+  public static DoubleArrayValue value(
+      String name, double[] defaultValue, Consumer<double[]> onChange) {
+    return value(name, defaultValue, onChange);
   }
 
   /** Creates tunable double array value with the specified default and change handler. */
   public static DoubleArrayValue value(
-      String name, double[] defaultValue, Consumer<double[]> onChange) {
-    return new DoubleArrayValue(name, defaultValue, Optional.of(onChange));
+      String name, double[] defaultValue, boolean critical, Consumer<double[]> onChange) {
+    return new DoubleArrayValue(name, defaultValue, critical, Optional.of(onChange));
+  }
+
+  /** Creates non-critical tunable boolean value with the specified default. */
+  public static BooleanValue value(String name, boolean defaultValue) {
+    return value(name, defaultValue, false);
   }
 
   /** Creates tunable boolean value with the specified default. */
-  public static BooleanValue value(String name, boolean defaultValue) {
-    return new BooleanValue(name, defaultValue, Optional.empty());
+  public static BooleanValue value(String name, boolean defaultValue, boolean critical) {
+    return new BooleanValue(name, defaultValue, critical, Optional.empty());
+  }
+
+  /** Creates non-critical tunable boolean value with the specified default and change handler. */
+  public static BooleanValue value(String name, boolean defaultValue, BooleanConsumer onChange) {
+    return value(name, defaultValue, false, onChange);
   }
 
   /** Creates tunable boolean value with the specified default and change handler. */
-  public static BooleanValue value(String name, boolean defaultValue, BooleanConsumer onChange) {
-    return new BooleanValue(name, defaultValue, Optional.of(onChange));
+  public static BooleanValue value(
+      String name, boolean defaultValue, boolean critical, BooleanConsumer onChange) {
+    return new BooleanValue(name, defaultValue, critical, Optional.of(onChange));
+  }
+
+  /** Creates non-critical tunable boolean array value with the specified default. */
+  public static BooleanArrayValue value(String name, boolean[] defaultValue) {
+    return value(name, defaultValue, false);
   }
 
   /** Creates tunable boolean array value with the specified default. */
-  public static BooleanArrayValue value(String name, boolean[] defaultValue) {
-    return new BooleanArrayValue(name, defaultValue, Optional.empty());
+  public static BooleanArrayValue value(String name, boolean[] defaultValue, boolean critical) {
+    return new BooleanArrayValue(name, defaultValue, critical, Optional.empty());
+  }
+
+  /**
+   * Creates non-critical tunable boolean array value with the specified default and change handler.
+   */
+  public static BooleanArrayValue value(
+      String name, boolean[] defaultValue, Consumer<boolean[]> onChange) {
+    return value(name, defaultValue, false, onChange);
   }
 
   /** Creates tunable boolean array value with the specified default and change handler. */
   public static BooleanArrayValue value(
-      String name, boolean[] defaultValue, Consumer<boolean[]> onChange) {
-    return new BooleanArrayValue(name, defaultValue, Optional.of(onChange));
+      String name, boolean[] defaultValue, boolean critical, Consumer<boolean[]> onChange) {
+    return new BooleanArrayValue(name, defaultValue, critical, Optional.of(onChange));
+  }
+
+  /** Creates non-critical tunable string value with the specified default. */
+  public static StringValue value(String name, String defaultValue) {
+    return value(name, defaultValue, false);
   }
 
   /** Creates tunable string value with the specified default. */
-  public static StringValue value(String name, String defaultValue) {
-    return new StringValue(name, defaultValue, Optional.empty());
+  public static StringValue value(String name, String defaultValue, boolean critical) {
+    return new StringValue(name, defaultValue, critical, Optional.empty());
+  }
+
+  /** Creates non-critical tunable string value with the specified default and change handler. */
+  public static StringValue value(String name, String defaultValue, Consumer<String> onChange) {
+    return value(name, defaultValue, false, onChange);
   }
 
   /** Creates tunable string value with the specified default and change handler. */
-  public static StringValue value(String name, String defaultValue, Consumer<String> onChange) {
-    return new StringValue(name, defaultValue, Optional.of(onChange));
+  public static StringValue value(
+      String name, String defaultValue, boolean critical, Consumer<String> onChange) {
+    return new StringValue(name, defaultValue, critical, Optional.of(onChange));
+  }
+
+  /** Creates non-critical tunable string array value with the specified default. */
+  public static StringArrayValue value(String name, String[] defaultValue) {
+    return value(name, defaultValue, false);
   }
 
   /** Creates tunable string array value with the specified default. */
-  public static StringArrayValue value(String name, String[] defaultValue) {
-    return new StringArrayValue(name, defaultValue, Optional.empty());
+  public static StringArrayValue value(String name, String[] defaultValue, boolean critical) {
+    return new StringArrayValue(name, defaultValue, critical, Optional.empty());
+  }
+
+  /**
+   * Creates non-critical tunable string array value with the specified default and change handler.
+   */
+  public static StringArrayValue value(
+      String name, String[] defaultValue, Consumer<String[]> onChange) {
+    return value(name, defaultValue, false, onChange);
   }
 
   /** Creates tunable string array value with the specified default and change handler. */
   public static StringArrayValue value(
-      String name, String[] defaultValue, Consumer<String[]> onChange) {
-    return new StringArrayValue(name, defaultValue, Optional.of(onChange));
+      String name, String[] defaultValue, boolean critical, Consumer<String[]> onChange) {
+    return new StringArrayValue(name, defaultValue, critical, Optional.of(onChange));
+  }
+
+  /** Creates non-critical tunable struct value with the specified default. */
+  public static <T> StructValue<T> value(String name, Struct<T> struct, T defaultValue) {
+    return value(name, struct, defaultValue, false);
   }
 
   /** Creates tunable struct value with the specified default. */
-  public static <T> StructValue<T> value(String name, Struct<T> struct, T defaultValue) {
-    return new StructValue<T>(name, struct, defaultValue, Optional.empty());
+  public static <T> StructValue<T> value(
+      String name, Struct<T> struct, T defaultValue, boolean critical) {
+    return new StructValue<T>(name, struct, defaultValue, critical, Optional.empty());
+  }
+
+  /** Creates non-critical tunable struct value with the specified default and change handler. */
+  public static <T> StructValue<T> value(
+      String name, Struct<T> struct, T defaultValue, Consumer<T> onChange) {
+    return value(name, struct, defaultValue, false, onChange);
   }
 
   /** Creates tunable struct value with the specified default and change handler. */
   public static <T> StructValue<T> value(
-      String name, Struct<T> struct, T defaultValue, Consumer<T> onChange) {
-    return new StructValue<T>(name, struct, defaultValue, Optional.of(onChange));
+      String name, Struct<T> struct, T defaultValue, boolean critical, Consumer<T> onChange) {
+    return new StructValue<T>(name, struct, defaultValue, critical, Optional.of(onChange));
+  }
+
+  /** Creates non-critical tunable struct array value with the specified default. */
+  public static <T> StructArrayValue<T> value(String name, Struct<T> struct, T[] defaultValue) {
+    return value(name, struct, defaultValue, false);
   }
 
   /** Creates tunable struct array value with the specified default. */
-  public static <T> StructArrayValue<T> value(String name, Struct<T> struct, T[] defaultValue) {
-    return new StructArrayValue<T>(name, struct, defaultValue, Optional.empty());
+  public static <T> StructArrayValue<T> value(
+      String name, Struct<T> struct, T[] defaultValue, boolean critical) {
+    return new StructArrayValue<T>(name, struct, defaultValue, critical, Optional.empty());
+  }
+
+  /**
+   * Creates non-critical tunable struct array value with the specified default and change handler.
+   */
+  public static <T> StructArrayValue<T> value(
+      String name, Struct<T> struct, T[] defaultValue, Consumer<T[]> onChange) {
+    return value(name, struct, defaultValue, false);
   }
 
   /** Creates tunable struct array value with the specified default and change handler. */
   public static <T> StructArrayValue<T> value(
-      String name, Struct<T> struct, T[] defaultValue, Consumer<T[]> onChange) {
-    return new StructArrayValue<T>(name, struct, defaultValue, Optional.of(onChange));
+      String name, Struct<T> struct, T[] defaultValue, boolean critical, Consumer<T[]> onChange) {
+    return new StructArrayValue<T>(name, struct, defaultValue, critical, Optional.of(onChange));
   }
 
   /** Makes bound {@link PIDController} tunable. */
   public static void bind(String name, PIDController value) {
-    value(name + "/kP", value.getP(), v -> value.setP(v));
-    value(name + "/kI", value.getI(), v -> value.setI(v));
-    value(name + "/kD", value.getD(), v -> value.setD(v));
-    value(name + "/IZone", value.getIZone(), v -> value.setIZone(v));
-    value(name + "/Tolerance", value.getErrorTolerance(), v -> value.setTolerance(v));
+    bind(name, value, false);
+  }
+
+  /** Makes bound {@link PIDController} tunable. */
+  public static void bind(String name, PIDController value, boolean critical) {
+    value(name + "/kP", value.getP(), critical, v -> value.setP(v));
+    value(name + "/kI", value.getI(), critical, v -> value.setI(v));
+    value(name + "/kD", value.getD(), critical, v -> value.setD(v));
+    value(name + "/IZone", value.getIZone(), critical, v -> value.setIZone(v));
+    value(name + "/Tolerance", value.getErrorTolerance(), critical, v -> value.setTolerance(v));
   }
 
   /** Makes bound {@link ProfiledPIDController} tunable. */
   public static void bind(String name, ProfiledPIDController value) {
-    value(name + "/kP", value.getP(), v -> value.setP(v));
-    value(name + "/kI", value.getI(), v -> value.setI(v));
-    value(name + "/kD", value.getD(), v -> value.setD(v));
-    value(name + "/IZone", value.getIZone(), v -> value.setIZone(v));
-    value(name + "/Tolerance", value.getPositionTolerance(), v -> value.setTolerance(v));
+    bind(name, value, false);
+  }
+
+  /** Makes bound {@link ProfiledPIDController} tunable. */
+  public static void bind(String name, ProfiledPIDController value, boolean critical) {
+    value(name + "/kP", value.getP(), critical, v -> value.setP(v));
+    value(name + "/kI", value.getI(), critical, v -> value.setI(v));
+    value(name + "/kD", value.getD(), critical, v -> value.setD(v));
+    value(name + "/IZone", value.getIZone(), critical, v -> value.setIZone(v));
+    value(name + "/Tolerance", value.getPositionTolerance(), critical, v -> value.setTolerance(v));
     value(
         name + "/MaxV",
         value.getConstraints().maxVelocity,
+        critical,
         v ->
             value.setConstraints(
                 new TrapezoidProfile.Constraints(v, value.getConstraints().maxAcceleration)));
     value(
         name + "/MaxA",
         value.getConstraints().maxAcceleration,
+        critical,
         v ->
             value.setConstraints(
                 new TrapezoidProfile.Constraints(value.getConstraints().maxVelocity, v)));
@@ -444,12 +678,18 @@ public final class Tunable {
 
   /** Makes bound {@link TalonFX} controller at closed loop slot 0 tunable. */
   public static void bind(String name, TalonFX talonFX) {
+    bind(name, talonFX, false);
+  }
+
+  /** Makes bound {@link TalonFX} controller at closed loop slot 0 tunable. */
+  public static void bind(String name, TalonFX talonFX, boolean critical) {
     final var config = new Slot0Configs();
     talonFX.getConfigurator().refresh(config);
 
     value(
         name + "/kP",
         config.kP,
+        critical,
         v -> {
           talonFX.getConfigurator().refresh(config);
           config.kP = v;
@@ -458,6 +698,7 @@ public final class Tunable {
     value(
         name + "/kI",
         config.kI,
+        critical,
         v -> {
           talonFX.getConfigurator().refresh(config);
           config.kI = v;
@@ -466,6 +707,7 @@ public final class Tunable {
     value(
         name + "/kD",
         config.kD,
+        critical,
         v -> {
           talonFX.getConfigurator().refresh(config);
           config.kD = v;
@@ -474,6 +716,7 @@ public final class Tunable {
     value(
         name + "/kS",
         config.kS,
+        critical,
         v -> {
           talonFX.getConfigurator().refresh(config);
           config.kS = v;
@@ -482,6 +725,7 @@ public final class Tunable {
     value(
         name + "/kV",
         config.kV,
+        critical,
         v -> {
           talonFX.getConfigurator().refresh(config);
           config.kV = v;
@@ -490,6 +734,7 @@ public final class Tunable {
     value(
         name + "/kA",
         config.kA,
+        critical,
         v -> {
           talonFX.getConfigurator().refresh(config);
           config.kA = v;
@@ -498,6 +743,7 @@ public final class Tunable {
     value(
         name + "/kG",
         config.kG,
+        critical,
         v -> {
           talonFX.getConfigurator().refresh(config);
           config.kG = v;
@@ -507,12 +753,18 @@ public final class Tunable {
 
   /** Makes bound {@link TalonFX} controller at closed loop slot 1 tunable. */
   public static void bind1(String name, TalonFX talonFX) {
+    bind1(name, talonFX, false);
+  }
+
+  /** Makes bound {@link TalonFX} controller at closed loop slot 1 tunable. */
+  public static void bind1(String name, TalonFX talonFX, boolean critical) {
     final var config = new Slot1Configs();
     talonFX.getConfigurator().refresh(config);
 
     value(
         name + "/kP",
         config.kP,
+        critical,
         v -> {
           talonFX.getConfigurator().refresh(config);
           config.kP = v;
@@ -521,6 +773,7 @@ public final class Tunable {
     value(
         name + "/kI",
         config.kI,
+        critical,
         v -> {
           talonFX.getConfigurator().refresh(config);
           config.kI = v;
@@ -529,6 +782,7 @@ public final class Tunable {
     value(
         name + "/kD",
         config.kD,
+        critical,
         v -> {
           talonFX.getConfigurator().refresh(config);
           config.kD = v;
@@ -537,6 +791,7 @@ public final class Tunable {
     value(
         name + "/kS",
         config.kS,
+        critical,
         v -> {
           talonFX.getConfigurator().refresh(config);
           config.kS = v;
@@ -545,6 +800,7 @@ public final class Tunable {
     value(
         name + "/kV",
         config.kV,
+        critical,
         v -> {
           talonFX.getConfigurator().refresh(config);
           config.kV = v;
@@ -553,6 +809,7 @@ public final class Tunable {
     value(
         name + "/kA",
         config.kA,
+        critical,
         v -> {
           talonFX.getConfigurator().refresh(config);
           config.kA = v;
@@ -561,6 +818,7 @@ public final class Tunable {
     value(
         name + "/kG",
         config.kG,
+        critical,
         v -> {
           talonFX.getConfigurator().refresh(config);
           config.kG = v;
@@ -570,12 +828,18 @@ public final class Tunable {
 
   /** Makes bound {@link TalonFX} controller Motion Magic tunable. */
   public static void bindMotionProfile(String name, TalonFX talonFX) {
+    bindMotionProfile(name, talonFX, false);
+  }
+
+  /** Makes bound {@link TalonFX} controller Motion Magic tunable. */
+  public static void bindMotionProfile(String name, TalonFX talonFX, boolean critical) {
     final var config = new MotionMagicConfigs();
     talonFX.getConfigurator().refresh(config);
 
     value(
         name + "/Velocity",
         config.MotionMagicCruiseVelocity,
+        critical,
         v -> {
           talonFX.getConfigurator().refresh(config);
           config.MotionMagicCruiseVelocity = v;
@@ -584,6 +848,7 @@ public final class Tunable {
     value(
         name + "/Acceleration",
         config.MotionMagicAcceleration,
+        critical,
         v -> {
           talonFX.getConfigurator().refresh(config);
           config.MotionMagicAcceleration = v;
@@ -592,6 +857,7 @@ public final class Tunable {
     value(
         name + "/Jerk",
         config.MotionMagicJerk,
+        critical,
         v -> {
           talonFX.getConfigurator().refresh(config);
           config.MotionMagicJerk = v;
@@ -600,6 +866,7 @@ public final class Tunable {
     value(
         name + "/Expo kV",
         config.MotionMagicExpo_kV,
+        critical,
         v -> {
           talonFX.getConfigurator().refresh(config);
           config.MotionMagicExpo_kV = v;
@@ -608,6 +875,7 @@ public final class Tunable {
     value(
         name + "/Expo kA",
         config.MotionMagicExpo_kA,
+        critical,
         v -> {
           talonFX.getConfigurator().refresh(config);
           config.MotionMagicExpo_kA = v;
@@ -617,12 +885,18 @@ public final class Tunable {
 
   /** Makes bound {@link TalonFXS} controller at closed loop slot 0 tunable. */
   public static void bind(String name, TalonFXS talonFXS) {
+    bind(name, talonFXS, false);
+  }
+
+  /** Makes bound {@link TalonFXS} controller at closed loop slot 0 tunable. */
+  public static void bind(String name, TalonFXS talonFXS, boolean critical) {
     final var config = new Slot0Configs();
     talonFXS.getConfigurator().refresh(config);
 
     value(
         name + "/kP",
         config.kP,
+        critical,
         v -> {
           talonFXS.getConfigurator().refresh(config);
           config.kP = v;
@@ -631,6 +905,7 @@ public final class Tunable {
     value(
         name + "/kI",
         config.kI,
+        critical,
         v -> {
           talonFXS.getConfigurator().refresh(config);
           config.kI = v;
@@ -639,6 +914,7 @@ public final class Tunable {
     value(
         name + "/kD",
         config.kD,
+        critical,
         v -> {
           talonFXS.getConfigurator().refresh(config);
           config.kD = v;
@@ -647,6 +923,7 @@ public final class Tunable {
     value(
         name + "/kS",
         config.kS,
+        critical,
         v -> {
           talonFXS.getConfigurator().refresh(config);
           config.kS = v;
@@ -655,6 +932,7 @@ public final class Tunable {
     value(
         name + "/kV",
         config.kV,
+        critical,
         v -> {
           talonFXS.getConfigurator().refresh(config);
           config.kV = v;
@@ -663,6 +941,7 @@ public final class Tunable {
     value(
         name + "/kA",
         config.kA,
+        critical,
         v -> {
           talonFXS.getConfigurator().refresh(config);
           config.kA = v;
@@ -671,6 +950,7 @@ public final class Tunable {
     value(
         name + "/kG",
         config.kG,
+        critical,
         v -> {
           talonFXS.getConfigurator().refresh(config);
           config.kG = v;
@@ -678,14 +958,20 @@ public final class Tunable {
         });
   }
 
-  /** Makes bound {@link TalonFXS} controller at closed loop slot 0 tunable. */
+  /** Makes bound {@link TalonFXS} controller at closed loop slot 1 tunable. */
   public static void bind1(String name, TalonFXS talonFXS) {
+    bind1(name, talonFXS, false);
+  }
+
+  /** Makes bound {@link TalonFXS} controller at closed loop slot 1 tunable. */
+  public static void bind1(String name, TalonFXS talonFXS, boolean critical) {
     final var config = new Slot1Configs();
     talonFXS.getConfigurator().refresh(config);
 
     value(
         name + "/kP",
         config.kP,
+        critical,
         v -> {
           talonFXS.getConfigurator().refresh(config);
           config.kP = v;
@@ -694,6 +980,7 @@ public final class Tunable {
     value(
         name + "/kI",
         config.kI,
+        critical,
         v -> {
           talonFXS.getConfigurator().refresh(config);
           config.kI = v;
@@ -702,6 +989,7 @@ public final class Tunable {
     value(
         name + "/kD",
         config.kD,
+        critical,
         v -> {
           talonFXS.getConfigurator().refresh(config);
           config.kD = v;
@@ -710,6 +998,7 @@ public final class Tunable {
     value(
         name + "/kS",
         config.kS,
+        critical,
         v -> {
           talonFXS.getConfigurator().refresh(config);
           config.kS = v;
@@ -718,6 +1007,7 @@ public final class Tunable {
     value(
         name + "/kV",
         config.kV,
+        critical,
         v -> {
           talonFXS.getConfigurator().refresh(config);
           config.kV = v;
@@ -726,6 +1016,7 @@ public final class Tunable {
     value(
         name + "/kA",
         config.kA,
+        critical,
         v -> {
           talonFXS.getConfigurator().refresh(config);
           config.kA = v;
@@ -734,6 +1025,7 @@ public final class Tunable {
     value(
         name + "/kG",
         config.kG,
+        critical,
         v -> {
           talonFXS.getConfigurator().refresh(config);
           config.kG = v;
@@ -743,12 +1035,18 @@ public final class Tunable {
 
   /** Makes bound {@link TalonFXS} controller Motion Magic tunable. */
   public static void bindMotionProfile(String name, TalonFXS talonFXS) {
+    bindMotionProfile(name, talonFXS, false);
+  }
+
+  /** Makes bound {@link TalonFXS} controller Motion Magic tunable. */
+  public static void bindMotionProfile(String name, TalonFXS talonFXS, boolean critical) {
     final var config = new MotionMagicConfigs();
     talonFXS.getConfigurator().refresh(config);
 
     value(
         name + "/Velocity",
         config.MotionMagicCruiseVelocity,
+        critical,
         v -> {
           talonFXS.getConfigurator().refresh(config);
           config.MotionMagicCruiseVelocity = v;
@@ -757,6 +1055,7 @@ public final class Tunable {
     value(
         name + "/Acceleration",
         config.MotionMagicAcceleration,
+        critical,
         v -> {
           talonFXS.getConfigurator().refresh(config);
           config.MotionMagicAcceleration = v;
@@ -765,6 +1064,7 @@ public final class Tunable {
     value(
         name + "/Jerk",
         config.MotionMagicJerk,
+        critical,
         v -> {
           talonFXS.getConfigurator().refresh(config);
           config.MotionMagicJerk = v;
@@ -773,6 +1073,7 @@ public final class Tunable {
     value(
         name + "/Expo kV",
         config.MotionMagicExpo_kV,
+        critical,
         v -> {
           talonFXS.getConfigurator().refresh(config);
           config.MotionMagicExpo_kV = v;
@@ -781,6 +1082,7 @@ public final class Tunable {
     value(
         name + "/Expo kA",
         config.MotionMagicExpo_kA,
+        critical,
         v -> {
           talonFXS.getConfigurator().refresh(config);
           config.MotionMagicExpo_kA = v;
@@ -790,17 +1092,27 @@ public final class Tunable {
 
   /** Makes bound {@link ArmFeedforward} tunable. */
   public static void bind(String name, ArmFeedforward value) {
-    value(name + "/kS", value.getKs(), v -> value.setKs(v));
-    value(name + "/kG", value.getKg(), v -> value.setKg(v));
-    value(name + "/kV", value.getKv(), v -> value.setKv(v));
-    value(name + "/kA", value.getKa(), v -> value.setKa(v));
+    bind(name, value, false);
+  }
+
+  /** Makes bound {@link ArmFeedforward} tunable. */
+  public static void bind(String name, ArmFeedforward value, boolean critical) {
+    value(name + "/kS", value.getKs(), critical, v -> value.setKs(v));
+    value(name + "/kG", value.getKg(), critical, v -> value.setKg(v));
+    value(name + "/kV", value.getKv(), critical, v -> value.setKv(v));
+    value(name + "/kA", value.getKa(), critical, v -> value.setKa(v));
   }
 
   /** Makes bound {@link ElevatorFeedforward} tunable. */
   public static void bind(String name, ElevatorFeedforward value) {
-    value(name + "/kS", value.getKs(), v -> value.setKs(v));
-    value(name + "/kG", value.getKg(), v -> value.setKg(v));
-    value(name + "/kV", value.getKv(), v -> value.setKv(v));
-    value(name + "/kA", value.getKa(), v -> value.setKa(v));
+    bind(name, value, false);
+  }
+
+  /** Makes bound {@link ElevatorFeedforward} tunable. */
+  public static void bind(String name, ElevatorFeedforward value, boolean critical) {
+    value(name + "/kS", value.getKs(), critical, v -> value.setKs(v));
+    value(name + "/kG", value.getKg(), critical, v -> value.setKg(v));
+    value(name + "/kV", value.getKv(), critical, v -> value.setKv(v));
+    value(name + "/kA", value.getKa(), critical, v -> value.setKa(v));
   }
 }
