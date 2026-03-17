@@ -155,8 +155,7 @@ public class RobotContainer {
     drivetrain.registerTelemetry(state::updateSwerveTelemetry);
 
     shootButton
-        .and(turret::isAtSetpoint)
-        .debounce(250, DebounceType.kFalling)
+        .and(new Trigger(turret::isAtSetpoint).debounce(250, DebounceType.kFalling))
         .whileTrue(hopper.enable());
 
     shootButton.whileTrue(shooter.enable());
