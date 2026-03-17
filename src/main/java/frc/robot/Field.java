@@ -160,4 +160,7 @@ public final class Field {
       return shouldFlip() ? flip(translation) : translation;
     };
   }
+
+  public static Function<Translation2d, Translation2d> fieldTranslation =
+      createFieldTranslationSupplier();
 }

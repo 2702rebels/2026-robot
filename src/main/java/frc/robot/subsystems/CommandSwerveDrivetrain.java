@@ -9,7 +9,6 @@ import com.ctre.phoenix6.swerve.SwerveModule.DriveRequestType;
 import com.ctre.phoenix6.swerve.SwerveModuleConstants;
 import com.ctre.phoenix6.swerve.SwerveRequest;
 import com.ctre.phoenix6.swerve.SwerveRequest.ForwardPerspectiveValue;
-import com.therekrab.autopilot.APTarget;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.Matrix;
 import edu.wpi.first.math.controller.PIDController;
@@ -499,23 +498,6 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
    */
   public Command sysIdDynamic(SysIdRoutine.Direction direction) {
     return sysIdRoutineToApply.dynamic(direction);
-  }
-
-  /** Align to the specified target via Autopilot. */
-  public Command align(Supplier<APTarget> target) {
-    return run(() -> {
-          final var output =
-              Constants.DriveConstants.kAutopilot.calculate(
-                  getPose(), getRobotSpeeds(), target.get());
-
-          setControl(
-              driveFieldFacingAngle
-                  .withVelocityX(output.vx())
-                  .withVelocityY(output.vy())
-                  .withTargetDirection(output.targetAngle()));
-        })
-        .until(() -> Constants.DriveConstants.kAutopilot.atTarget(getPose(), target.get()))
-        .finallyDo(this::stop);
   }
 
   @Override
