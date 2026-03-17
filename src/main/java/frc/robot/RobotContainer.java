@@ -9,6 +9,7 @@ import static edu.wpi.first.units.Units.*;
 import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.math.filter.Debouncer.DebounceType;
 import edu.wpi.first.units.measure.Time;
 import edu.wpi.first.wpilibj.Alert;
 import edu.wpi.first.wpilibj.Alert.AlertType;
@@ -155,7 +156,10 @@ public class RobotContainer {
 
     shootButton
         .and(turret::isAtSetpoint)
-        .whileTrue(Commands.parallel(hopper.enable(), shooter.enable()));
+        .debounce(250, DebounceType.kFalling)
+        .whileTrue(hopper.enable());
+
+    shootButton.whileTrue(shooter.enable());
 
     enableIntakeButton.onTrue(intake.enable());
     resetButton.onTrue(intake.disable());
@@ -163,7 +167,7 @@ public class RobotContainer {
     climbUpButton.and(() -> !climb.isEngaged()).onTrue(climb.extend());
     climbDownButton.and(() -> !climb.isEngaged()).onTrue(climb.retract());
 
-    parkHoodButton.whileTrue(shooter.parkHood());
+    parkHoodButton.or(state::isShooterWithinTrench).whileTrue(shooter.parkHood());
 
     climbButton.and(climb::isReady).onTrue(climb.engage());
     resetButton.and(climb::isEngaged).onTrue(climb.disengage());

@@ -341,22 +341,23 @@ public class RobotState {
   /** Determines turret angle to the target. */
   private Angle getTurretAngleTo(Translation2d target) {
     final var pose = getRobotPose();
-    final var translation = pose.getTranslation();
-    final var rotation = pose.getRotation();
-
-    // find the poosition of the shooter in the field frame of reference
-    final var offsetXY = kShooterOffsetXY.rotateBy(rotation);
-    final var shooterXY = translation.plus(offsetXY);
+    final var shooterXY = getShooterFieldPose(pose);
 
     // turret desired angle and zero in field frame of reference
     final var turretDesired = target.minus(shooterXY).getAngle();
-    final var turretZero = rotation.plus(kTurretOffset);
+    final var turretZero = pose.getRotation().plus(kTurretOffset);
 
     return turretDesired.minus(turretZero).getMeasure();
   }
 
   public Optional<Angle> getTurretAngleSetpoint() {
     return Optional.of(turretAngle);
+  }
+
+  /** Returns the (X,Y) position of the shoooter in the field frame of reference. */
+  public Translation2d getShooterFieldPose(Pose2d pose) {
+    final var offsetXY = kShooterOffsetXY.rotateBy(pose.getRotation());
+    return pose.getTranslation().plus(offsetXY);
   }
 
   public Optional<Pair<Double, Double>> getShooterParameters() {
@@ -564,6 +565,11 @@ public class RobotState {
     }
   }
 
+  /** Determines whether shooter position is within trench zone. */
+  public boolean isShooterWithinTrench() {
+    return Field.isInTrenchZone(getShooterFieldPose(getRobotPose()));
+  }
+
   @Logged(name = "HubShotDistance", importance = Importance.DEBUG)
   public Distance hubShotDistance() {
     final var target = Field.fieldTranslation.apply(Field.kHubCenter);
@@ -580,8 +586,7 @@ public class RobotState {
   @Logged(name = "ShootPose", importance = Importance.DEBUG)
   public Pose2d getShootPose() {
     final var target = Field.fieldTranslation.apply(Field.kHubCenter);
-    final var corner =
-        Field.fieldTranslation.apply(new Translation2d(0, Field.kFieldWidth.in(Meters)));
+    final var corner = Field.fieldTranslation.apply(new Translation2d(0, Field.kFieldWidth));
 
     final var angle = target.minus(corner).getAngle();
     final var position = new Translation2d(shootDistanceToHub.get(), 0).rotateBy(angle);

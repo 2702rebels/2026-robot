@@ -1,14 +1,12 @@
 package frc.robot;
 
-import static edu.wpi.first.units.Units.*;
-
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Rotation3d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.geometry.Translation3d;
-import edu.wpi.first.units.measure.Distance;
+import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import java.util.function.Function;
@@ -16,50 +14,50 @@ import java.util.function.Function;
 /** Field-related functionality. Blue alliance origin. */
 public final class Field {
   /** Field length (X) */
-  public static final Distance kFieldLength = Inches.of(651.2);
+  public static final double kFieldLength = Units.inchesToMeters(651.2);
 
   /** Field width (Y) */
-  public static final Distance kFieldWidth = Inches.of(317.7);
+  public static final double kFieldWidth = Units.inchesToMeters(317.7);
 
   /** Field half length (X) */
-  public static final Distance kFieldHalfLength = kFieldLength.div(2);
+  public static final double kFieldHalfLength = kFieldLength / 2.0;
 
   /** Field half width (Y) */
-  public static final Distance kFieldHalfWidth = kFieldWidth.div(2);
+  public static final double kFieldHalfWidth = kFieldWidth / 2.0;
 
   /** Middle of the starting line */
-  public static final Distance kStartingLineX = Meters.of(4);
+  public static final double kStartingLineX = 4;
 
   /** Neutral zone near side */
-  public static final Distance kNeutralZoneNear = kFieldHalfLength.minus(Inches.of(120));
+  public static final double kNeutralZoneNear = kFieldHalfLength - Units.inchesToMeters(120);
 
   /** Neutral zone far side */
-  public static final Distance kNeutralZoneFar = kFieldHalfLength.minus(Inches.of(120));
+  public static final double kNeutralZoneFar = kFieldHalfLength - Units.inchesToMeters(120);
 
   /** Middle of the hub center line */
-  public static final Distance kHubLineX = Meters.of(4.625);
+  public static final double kHubLineX = 4.625;
+
+  /** Trench width (approximate) in meters */
+  public static final double kTrenchWidth = Units.inchesToMeters(50);
 
   /** Center of the hub */
-  public static final Translation2d kHubCenter =
-      new Translation2d(kHubLineX.in(Meters), kFieldHalfWidth.in(Meters));
+  public static final Translation2d kHubCenter = new Translation2d(kHubLineX, kFieldHalfWidth);
 
   /** Center of the lower trench */
-  public static final Translation2d kTrenchLowerCenter =
-      new Translation2d(kHubLineX.in(Meters), 1.279 / 2);
+  public static final Translation2d kTrenchLowerCenter = new Translation2d(kHubLineX, 1.279 / 2);
 
   /** Center of the upper trench */
   public static final Translation2d kTrenchUpperCenter =
-      new Translation2d(kHubLineX.in(Meters), kFieldWidth.in(Meters) - (1.279 / 2));
+      new Translation2d(kHubLineX, kFieldWidth - (1.279 / 2));
 
-  private Field() {}
-
-  private static final double fieldLength = kFieldLength.in(Meter);
-  private static final double fieldWidth = kFieldWidth.in(Meter);
+  private Field() {
+    throw new AssertionError();
+  }
 
   public static enum FieldType {
     MIRRORED {
       public double flipX(double x) {
-        return fieldLength - x;
+        return kFieldLength - x;
       }
 
       public double flipY(double y) {
@@ -72,11 +70,11 @@ public final class Field {
     },
     ROTATED {
       public double flipX(double x) {
-        return fieldLength - x;
+        return kFieldLength - x;
       }
 
       public double flipY(double y) {
-        return fieldWidth - y;
+        return kFieldWidth - y;
       }
 
       public double flipHeading(double heading) {
@@ -163,4 +161,28 @@ public final class Field {
 
   public static Function<Translation2d, Translation2d> fieldTranslation =
       createFieldTranslationSupplier();
+
+  /**
+   * Determines whether the specified pose falls within the either trench zone on both alliance
+   * sides.
+   */
+  public static boolean isInTrenchZone(Translation2d translation) {
+    final var t = translation;
+    final var x = t.getX();
+    final var y = t.getY();
+
+    if (y < kTrenchWidth || y > kFieldWidth - kTrenchWidth) {
+      // blue alliance side
+      if (x > kStartingLineX && x < kNeutralZoneNear) {
+        return true;
+      }
+
+      // red alliance side
+      if (x > kNeutralZoneFar && x < kFieldLength - kStartingLineX) {
+        return true;
+      }
+    }
+
+    return false;
+  }
 }
