@@ -21,6 +21,7 @@ import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import frc.robot.lib.CANduit;
+import frc.robot.lib.EnergyTracker;
 import frc.robot.lib.Hack;
 import frc.robot.lib.MatchTime;
 import frc.robot.lib.PhoenixUtil;
@@ -51,6 +52,8 @@ public class Robot extends TimedRobot {
 
   private Command autonomousCommand;
 
+  private final EnergyTracker energyTracker;
+
   @Logged(name = "Container")
   private final RobotContainer robotContainer;
 
@@ -62,6 +65,7 @@ public class Robot extends TimedRobot {
 
   public Robot() {
     vision = Vision.getInstance();
+    energyTracker = EnergyTracker.getInstance();
     robotState = RobotState.getInstance();
     robotContainer = new RobotContainer(canduit);
 
@@ -136,6 +140,7 @@ public class Robot extends TimedRobot {
       before = after;
       canduit.update();
       robotContainer.periodic();
+      energyTracker.periodic();
       robotState.enterPeriodic();
       CommandScheduler.getInstance().run();
       robotState.exitPeriodic();
@@ -148,6 +153,7 @@ public class Robot extends TimedRobot {
       PhoenixUtil.refreshSignals();
       canduit.update();
       robotContainer.periodic();
+      energyTracker.periodic();
       robotState.enterPeriodic();
       CommandScheduler.getInstance().run();
       robotState.exitPeriodic();

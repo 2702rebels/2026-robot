@@ -1,18 +1,26 @@
 package frc.robot;
 
+import static edu.wpi.first.units.Units.Seconds;
+
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Rotation3d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.geometry.Translation3d;
+import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.util.Units;
+import edu.wpi.first.units.measure.Time;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
+import java.util.Optional;
 import java.util.function.Function;
 
 /** Field-related functionality. Blue alliance origin. */
 public final class Field {
+  /** Robot bumper size (assumes square robot) */
+  public static final double kBumperSize = Units.inchesToMeters(34);
+
   /** Field length (X) */
   public static final double kFieldLength = Units.inchesToMeters(651.2);
 
@@ -37,18 +45,34 @@ public final class Field {
   /** Middle of the hub center line */
   public static final double kHubLineX = 4.625;
 
+  /** Effective zone for hub shooting, requiring bumpers to be partially within the alliance zone */
+  public static final double kShootingZoneX =
+      kStartingLineX + kBumperSize / 2 - Units.inchesToMeters(4);
+
   /** Trench width (approximate) in meters */
   public static final double kTrenchWidth = Units.inchesToMeters(50);
 
   /** Center of the hub */
   public static final Translation2d kHubCenter = new Translation2d(kHubLineX, kFieldHalfWidth);
 
-  /** Center of the lower trench */
-  public static final Translation2d kTrenchLowerCenter = new Translation2d(kHubLineX, 1.279 / 2);
+  /** Center of the lower trench (Blue) */
+  public static final Translation2d kBlueTrenchLowerCenter =
+      new Translation2d(kHubLineX, kTrenchWidth / 2);
 
-  /** Center of the upper trench */
-  public static final Translation2d kTrenchUpperCenter =
-      new Translation2d(kHubLineX, kFieldWidth - (1.279 / 2));
+  /** Center of the upper trench (Blue) */
+  public static final Translation2d kBlueTrenchUpperCenter =
+      new Translation2d(kHubLineX, kFieldWidth - kTrenchWidth / 2);
+
+  /** Center of the lower trench (Red) */
+  public static final Translation2d kRedTrenchLowerCenter =
+      new Translation2d(kFieldLength - kHubLineX, kFieldWidth - kTrenchWidth / 2);
+
+  /** Center of the upper trench (Red) */
+  public static final Translation2d kRedTrenchUpperCenter =
+      new Translation2d(kFieldLength - kHubLineX, kTrenchWidth / 2);
+
+  /** Approximate passing point as measured from the corresponding corner of the field. */
+  public static final Translation2d kDefaultPassingPoint = new Translation2d(1, 1);
 
   private Field() {
     throw new AssertionError();
@@ -137,52 +161,55 @@ public final class Field {
     return new Pose3d(flip(pose.getTranslation()), flip(pose.getRotation()));
   }
 
-  /**
-   * Returns the supplier of pose specified in the blue alliance origin corrected to the current
-   * alliance.
-   */
-  public static Function<Pose2d, Pose2d> createFieldPoseSupplier() {
-    return (Pose2d pose) -> {
-      return shouldFlip() ? flip(pose) : pose;
-    };
-  }
-
-  public static Function<Pose2d, Pose2d> fieldPose = createFieldPoseSupplier();
-
-  /**
-   * Returns the supplier of translation specified in the blue alliance origin corrected to the
-   * current alliance.
-   */
-  public static Function<Translation2d, Translation2d> createFieldTranslationSupplier() {
-    return (Translation2d translation) -> {
-      return shouldFlip() ? flip(translation) : translation;
-    };
-  }
-
+  public static Function<Pose2d, Pose2d> fieldPose = (Pose2d v) -> shouldFlip() ? flip(v) : v;
   public static Function<Translation2d, Translation2d> fieldTranslation =
-      createFieldTranslationSupplier();
+      (Translation2d v) -> shouldFlip() ? flip(v) : v;
+  public static Function<Double, Double> fieldX = (Double v) -> shouldFlip() ? flipX(v) : v;
+  public static Function<Double, Double> fieldY = (Double v) -> shouldFlip() ? flipY(v) : v;
 
   /**
    * Determines whether the specified pose falls within the either trench zone on both alliance
-   * sides.
+   * sides and returns center of the trench position if true.
    */
-  public static boolean isInTrenchZone(Translation2d translation) {
-    final var t = translation;
-    final var x = t.getX();
-    final var y = t.getY();
+  public static Optional<Translation2d> isInTrenchZone(Translation2d xy) {
+    final var x = xy.getX();
+    final var y = xy.getY();
 
     if (y < kTrenchWidth || y > kFieldWidth - kTrenchWidth) {
       // blue alliance side
       if (x > kStartingLineX && x < kNeutralZoneNear) {
-        return true;
+        return y < kTrenchWidth
+            ? Optional.of(kBlueTrenchLowerCenter)
+            : Optional.of(kBlueTrenchUpperCenter);
       }
 
       // red alliance side
       if (x > kNeutralZoneFar && x < kFieldLength - kStartingLineX) {
-        return true;
+        return y < kTrenchWidth
+            ? Optional.of(kRedTrenchUpperCenter)
+            : Optional.of(kRedTrenchLowerCenter);
       }
     }
 
-    return false;
+    return Optional.empty();
+  }
+
+  /**
+   * Extends {@link #isInTrenchZone(Translation2d)} with predictive behavior based on current
+   * velocity and time horizon.
+   */
+  public static Optional<Translation2d> isInTrenchZone(
+      Pose2d pose, ChassisSpeeds fieldSpeeds, Time dt) {
+    return isInTrenchZone(pose.getTranslation())
+        .or(() -> isInTrenchZone(pose.exp(fieldSpeeds.toTwist2d(dt.in(Seconds))).getTranslation()));
+  }
+
+  /**
+   * Determines whether the specified robot pose's translation falls within the shooting zone aka
+   * bumpers partially within the alliance zone
+   */
+  public static boolean isInShootingZone(Translation2d xy) {
+    final var x = xy.getX();
+    return shouldFlip() ? x > kFieldLength - kShootingZoneX : x < kShootingZoneX;
   }
 }

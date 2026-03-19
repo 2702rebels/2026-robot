@@ -42,7 +42,8 @@ public class ShotCalculator {
       Time tof,
       double shooterVelocity,
       double shooterAngle,
-      double quality) {}
+      double quality,
+      int iterations) {}
 
   // solver tuning
   private static final int kMaxIterations = 10;
@@ -82,7 +83,7 @@ public class ShotCalculator {
     return (hi - lo) / (2.0 * kDerivativeStepToF);
   }
 
-  private static record SolverResult(double distance, double tof, double quality) {}
+  private static record SolverResult(double distance, double tof, double quality, int iterations) {}
 
   /** Newton-method solver implementation. */
   private SolverResult solve(double distance, double tx, double ty, double vx, double vy) {
@@ -160,7 +161,7 @@ public class ShotCalculator {
                     (double) (iterations - kQualityIterations)
                         / (kMaxIterations - kQualityIterations));
 
-    return new SolverResult(d, tof, quality);
+    return new SolverResult(d, tof, quality, iterations);
   }
 
   /** Solves for the firing solution based on the current robot pose and field-relative velocity. */
@@ -183,7 +184,7 @@ public class ShotCalculator {
     final var velocityFiltered = speed < kMinSpeed;
     final var result =
         velocityFiltered
-            ? new SolverResult(distance, getEntry(distance).tof(), 1)
+            ? new SolverResult(distance, getEntry(distance).tof(), 1, 0)
             : solve(distance, d.getX(), d.getY(), vx, vy);
 
     // save for next cycle's warm start
@@ -212,7 +213,8 @@ public class ShotCalculator {
         Seconds.of(result.tof),
         r.velocity(),
         r.angle(),
-        result.quality);
+        result.quality,
+        result.iterations);
   }
 
   /** Adds a LUT entry. */

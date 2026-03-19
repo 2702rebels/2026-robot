@@ -18,12 +18,13 @@ import frc.robot.lib.CANduit;
 import frc.robot.lib.EasyCRT;
 import frc.robot.lib.EasyCRT.CRTStatus;
 import frc.robot.lib.EasyCRTConfig;
+import frc.robot.lib.EnergyReporter;
 import frc.robot.lib.LoggedTalonFX;
 import frc.robot.lib.Tunable;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-public final class Turret extends SubsystemBase {
+public final class Turret extends SubsystemBase implements EnergyReporter {
   // MAKE SURE TO UPDATE THESE VALUES AFTER TUNING
   // DO NOT USE THESE VALUES DIRECTLY IN PERIODIC CODE,
   // USE THEM TO INITIALIZE TUNABLE VALUES AND CONTROLLERS
@@ -71,14 +72,6 @@ public final class Turret extends SubsystemBase {
   // indicates that the subsystem has been initialized by determining the position of the turret
   private boolean initialized = false;
 
-  private static enum Mode {
-    kNone,
-    kManual,
-    kTracking,
-  }
-
-  private Mode mode = Mode.kNone;
-
   // external turrent position supplier in tracking mode
   private Supplier<Optional<Angle>> trackingAngleSupplier = () -> Optional.empty();
 
@@ -86,8 +79,8 @@ public final class Turret extends SubsystemBase {
   private static final double kEncoder1Ratio = kTurretTeeth / 17.0;
   private static final double kEncoder2Ratio = kTurretTeeth / 19.0;
 
-  private static final Angle kEncoder1Offset = Degrees.of(-308.6);
-  private static final Angle kEncoder2Offset = Degrees.of(-356.6);
+  private static final Angle kEncoder1Offset = Degrees.of(-15.1);
+  private static final Angle kEncoder2Offset = Degrees.of(-185.8);
   private static final Angle kMinRange = Degrees.of(-260.0);
   private static final Angle kMaxRange = Degrees.of(260.0);
 
@@ -170,8 +163,6 @@ public final class Turret extends SubsystemBase {
                 .withAbsoluteEncoderOffsets(kEncoder1Offset, kEncoder2Offset)
                 .withMechanismRange(kMinRange, kMaxRange)
                 .withMatchTolerance(Degrees.of(kTolerance)));
-
-    mode = Mode.kTracking; // FOR TESTING ONLY
 
     // adjust initialization direction based on presumed position
     initDutyCycle *= (getPosition().in(Degrees) >= 0 ? -1 : 1);
@@ -366,6 +357,11 @@ public final class Turret extends SubsystemBase {
 
   public void setTrackingSupplier(Supplier<Optional<Angle>> supplier) {
     trackingAngleSupplier = supplier;
+  }
+
+  @Override
+  public double getTotalSupplyCurrent() {
+    return Math.abs(motor.getSupplyCurrentAmps());
   }
 
   // spotless:off

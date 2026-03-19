@@ -29,6 +29,8 @@ import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import frc.robot.Constants;
 import frc.robot.Constants.DriveConstants;
 import frc.robot.generated.TunerConstants.TunerSwerveDrivetrain;
+import frc.robot.lib.EnergyReporter;
+import frc.robot.lib.SwerveModuleTelemetry;
 import frc.robot.lib.SysIdSwerveTranslationTorqueCurrent;
 import frc.robot.lib.Tunable;
 import java.util.Optional;
@@ -38,7 +40,8 @@ import java.util.function.Supplier;
  * Class that extends the Phoenix 6 SwerveDrivetrain class and implements subsystem so it can easily
  * be used in command-based projects.
  */
-public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Subsystem {
+public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain
+    implements Subsystem, EnergyReporter {
   private static final double kSimLoopPeriod = 0.005; // 5 ms
   private Notifier simNotifier = null;
   private double lastSimTime;
@@ -197,6 +200,9 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
   // angle for orientation lock
   private Optional<Rotation2d> orientationLock = Optional.empty();
 
+  // Y coordinate for driving cross-track assist
+  private Optional<Double> crossTrackAssistY = Optional.empty();
+
   private final PIDController crossTrackController =
       new PIDController(
           DriveConstants.CrossTrack.kP,
@@ -204,10 +210,24 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
           DriveConstants.CrossTrack.kD,
           Constants.cyclePeriodSeconds);
 
+  private SwerveModuleTelemetry moduleFL;
+  private SwerveModuleTelemetry moduleFR;
+  private SwerveModuleTelemetry moduleBL;
+  private SwerveModuleTelemetry moduleBR;
+
   private void init() {
     if (Utils.isSimulation()) {
       startSimThread();
     }
+
+    moduleFL =
+        new SwerveModuleTelemetry(getModule(0).getDriveMotor(), getModule(0).getSteerMotor());
+    moduleFR =
+        new SwerveModuleTelemetry(getModule(1).getDriveMotor(), getModule(1).getSteerMotor());
+    moduleBL =
+        new SwerveModuleTelemetry(getModule(2).getDriveMotor(), getModule(2).getSteerMotor());
+    moduleBR =
+        new SwerveModuleTelemetry(getModule(3).getDriveMotor(), getModule(3).getSteerMotor());
 
     crossTrackController.setTolerance(Constants.DriveConstants.kTranslationTolerance);
 
@@ -377,9 +397,35 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
           final var heading = Math.atan2(vx, vy);
           final var v = MathUtil.clamp(teleopVelocityLimiter.calculate(Math.hypot(vx, vy)), -1, 1);
 
+          var fieldVx = v * Math.sin(heading) * maxSpeedMetersPerSecond;
+          var fieldVy = v * Math.cos(heading) * maxSpeedMetersPerSecond;
+
+          if (crossTrackAssistY.isPresent()) {
+            // determine the Y velocity to stay on track
+            var trackVy = crossTrackController.calculate(getPose().getY(), crossTrackAssistY.get());
+            if (crossTrackController.atSetpoint()) {
+              trackVy = 0;
+            }
+
+            if (trackVy != 0) {
+              final var sign = Math.signum(fieldVy);
+              if (sign == 0.0) {
+                fieldVy = trackVy;
+              } else if (sign == Math.signum(trackVy)) {
+                // when human-commanded velocity is aligned with the track velocity
+                // then apply the minimum of two, effectively clamping driver's control
+                // at the calculated cross-track velocity
+                fieldVy = sign * Math.min(Math.abs(fieldVy), Math.abs(trackVy));
+              } else {
+                // otherwise, try to counteract the human-commanded velocity
+                fieldVy -= trackVy;
+              }
+            }
+          }
+
           driveAtFieldRelative(
-              v * Math.sin(heading) * maxSpeedMetersPerSecond,
-              v * Math.cos(heading) * maxSpeedMetersPerSecond,
+              fieldVx,
+              fieldVy,
               MathUtil.clamp(Math.signum(w) * teleopRotationLimiter.calculate(Math.abs(w)), -1, 1)
                   * maxAngularRateRadiansPerSecond);
         });
@@ -479,6 +525,25 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
   }
 
   /**
+   * Sets the cross-track Y assist.
+   *
+   * @param value Y field coordinate to align the robot to
+   */
+  public void setCrossTrackYAssist(double value) {
+    crossTrackAssistY = Optional.of(value);
+  }
+
+  /** Removes the cross-track Y assist. */
+  public void clearCrossTrackYAssist() {
+    crossTrackAssistY = Optional.empty();
+  }
+
+  /** Determines whether cross-track Y assist is enabled. */
+  public boolean hasCrossTrackYAssist() {
+    return crossTrackAssistY.isPresent();
+  }
+
+  /**
    * Runs the SysId Quasistatic test in the given direction for the routine specified by {@link
    * #sysIdRoutineToApply}.
    *
@@ -519,6 +584,18 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
                 hasAppliedOperatorPerspective = true;
               });
     }
+  }
+
+  @Override
+  public double getTotalSupplyCurrent() {
+    return Math.abs(moduleFL.getDriveSupplyCurrentAmps())
+        + Math.abs(moduleFL.getSteerSupplyCurrentAmps())
+        + Math.abs(moduleFR.getDriveSupplyCurrentAmps())
+        + Math.abs(moduleFR.getSteerSupplyCurrentAmps())
+        + Math.abs(moduleBL.getDriveSupplyCurrentAmps())
+        + Math.abs(moduleBL.getSteerSupplyCurrentAmps())
+        + Math.abs(moduleBR.getDriveSupplyCurrentAmps())
+        + Math.abs(moduleBR.getSteerSupplyCurrentAmps());
   }
 
   private void startSimThread() {

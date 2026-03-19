@@ -8,7 +8,7 @@ import edu.wpi.first.networktables.NetworkTableInstance;
 public class Vision {
   private static Vision instance;
 
-  public static Vision getInstance() {
+  public static synchronized Vision getInstance() {
     if (instance == null) instance = new Vision();
     return instance;
   }

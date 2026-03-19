@@ -21,13 +21,14 @@ import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
+import frc.robot.lib.EnergyReporter;
 import frc.robot.lib.LoggedTalonFX;
 import frc.robot.lib.PhoenixUtil;
 import frc.robot.lib.Tunable;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-public final class Shooter extends SubsystemBase {
+public final class Shooter extends SubsystemBase implements EnergyReporter {
   // MAKE SURE TO UPDATE THESE VALUES AFTER TUNING
   // DO NOT USE THESE VALUES DIRECTLY IN PERIODIC CODE,
   // USE THEM TO INITIALIZE TUNABLE VALUES AND CONTROLLERS
@@ -262,6 +263,13 @@ public final class Shooter extends SubsystemBase {
 
   public void setTrackingSupplier(Supplier<Optional<Pair<Double, Double>>> supplier) {
     trackingParametersSupplier = supplier;
+  }
+
+  @Override
+  public double getTotalSupplyCurrent() {
+    return Math.abs(flywheelMotorLeader.getSupplyCurrentAmps())
+        + Math.abs(flywheelMotorFollower.getSupplyCurrentAmps())
+        + Math.abs(hoodMotor.getSupplyCurrentAmps());
   }
 
   // spotless:off

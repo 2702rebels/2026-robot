@@ -10,6 +10,7 @@ import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.filter.Debouncer.DebounceType;
+import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.units.measure.Time;
 import edu.wpi.first.wpilibj.Alert;
 import edu.wpi.first.wpilibj.Alert.AlertType;
@@ -23,6 +24,7 @@ import edu.wpi.first.wpilibj2.command.button.Trigger;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
 import frc.robot.generated.TunerConstants;
 import frc.robot.lib.CANduit;
+import frc.robot.lib.EnergyTracker;
 import frc.robot.lib.GamePhaseTracker;
 import frc.robot.lib.Tunable;
 import frc.robot.subsystems.AprilTagDetector;
@@ -105,7 +107,7 @@ public class RobotContainer {
     state.setVisionStateSupplier(aprilTagDetector::getState);
     state.setGamePhaseSupplier(gamePhaseTracker::getPhase);
 
-    turret.setTrackingSupplier(state::getTurretAngleSetpoint);
+    turret.setTrackingSupplier(state::getTurretAngle);
     shooter.setTrackingSupplier(state::getShooterParameters);
 
     // [!] order matters here: we want to poll driver input first, since in most cases
@@ -114,6 +116,15 @@ public class RobotContainer {
     // update cycle (this only works if the logic runs within command init method)
     configureDriverBindings();
     configureTriggers();
+
+    // register subsystems for energy tracking
+    final var energyTracker = EnergyTracker.getInstance();
+    energyTracker.register("Drive", drivetrain);
+    energyTracker.register("Intake", intake);
+    energyTracker.register("Hopper", hopper);
+    energyTracker.register("Turret", turret);
+    energyTracker.register("Shooter", shooter);
+    energyTracker.register("Climb", climb);
   }
 
   /** Smooth out control input by squaring. */
@@ -171,13 +182,11 @@ public class RobotContainer {
     climbButton.and(climb::isReady).onTrue(climb.engage());
     resetButton.and(climb::isEngaged).onTrue(climb.disengage());
 
-    // controllerDriver.povLeft().onTrue(drivetrain.align(() -> new
-    // APTarget(state.getShootPose())));
     // controllerDriver
     //     .povLeft()
     //     .whileTrue(
     //         new DriveToPose(
-    //             drivetrain, () -> Optional.of(state.getShootPose()), state::getRobotPose));
+    //             drivetrain, () -> Optional.of(state.getTuningShotPose()), state::getRobotPose));
 
     // controllerDriver.y().onTrue();
     // controllerDriver.b().onTrue(intake.enable().andThen(intake.deploy()));
@@ -192,6 +201,32 @@ public class RobotContainer {
     RobotModeTriggers.teleop().onTrue(Commands.runOnce(gamePhaseTracker::startPeriod));
     RobotModeTriggers.disabled()
         .onTrue(Commands.runOnce(gamePhaseTracker::startPeriod).ignoringDisable(true));
+
+    // driver assist for through-trench driving
+    new Trigger(() -> state.isRobotNearTrench().isPresent())
+        .debounce(0.1)
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  final var trench = state.isRobotNearTrench();
+                  if (trench.isPresent()) {
+                    final var heading = drivetrain.getPose().getRotation().getDegrees();
+                    // snap heading to 0 or 180 degrees
+                    final var orientationLockTo =
+                        Math.abs(MathUtil.inputModulus(heading, -180, 180)) < 90
+                            ? Rotation2d.kZero
+                            : Rotation2d.k180deg;
+
+                    drivetrain.setOrientationLock(orientationLockTo);
+                    drivetrain.setCrossTrackYAssist(trench.get().getY());
+                  }
+                }))
+        .onFalse(
+            Commands.runOnce(
+                () -> {
+                  drivetrain.clearOrientationLock();
+                  drivetrain.clearCrossTrackYAssist();
+                }));
 
     // alert for missing auto win alliance
     RobotModeTriggers.teleop()

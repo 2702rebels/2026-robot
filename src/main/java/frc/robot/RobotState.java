@@ -44,9 +44,16 @@ import java.util.function.Supplier;
 public class RobotState {
   private static RobotState instance;
 
-  public static RobotState getInstance() {
+  public static synchronized RobotState getInstance() {
     if (instance == null) instance = new RobotState();
     return instance;
+  }
+
+  public static enum PassingPoint {
+    kDefault,
+    kTrenchAuto,
+    kTrenchUpper,
+    kTrenchLower,
   }
 
   private static final long kVisionCutoff = 60 * 1000; // microseconds
@@ -118,31 +125,38 @@ public class RobotState {
   private final ShotCalculator shotCalculator;
   private ShotCalculator.ShotParameters shotParameters =
       new ShotCalculator.ShotParameters(
-          Translation2d.kZero, Meters.zero(), Seconds.zero(), 0, 0, 0);
+          Translation2d.kZero, Meters.zero(), Seconds.zero(), 0, 0, 0, 0);
 
   private final MedianFilter shotVelocity = new MedianFilter(5);
   private final MedianFilter shotAngle = new MedianFilter(5);
 
-  @Logged(name = "ComputedShotConfidence")
+  private PassingPoint passingPoint = PassingPoint.kDefault;
+
+  @Logged(name = "Shot/Confidence", importance = Importance.CRITICAL)
   private double shotConfidence = 0;
 
-  @Logged(name = "TurretAngleSetpoint")
-  private Angle turretAngle = Degrees.zero();
-
-  @Logged(name = "ComputedShotVelocity")
+  @Logged(name = "Shot/Velocity", importance = Importance.CRITICAL)
   public double getShotVelocity() {
     return shotVelocity.lastValue();
   }
 
-  @Logged(name = "ComputedShotAngle")
+  @Logged(name = "Shot/Angle", importance = Importance.CRITICAL)
   public double getShotAngle() {
     return shotAngle.lastValue();
   }
 
-  @Logged(name = "ComputedShotQuality")
+  @Logged(name = "Shot/Quality", importance = Importance.CRITICAL)
   public double getShotQuality() {
     return shotParameters.quality();
   }
+
+  @Logged(name = "Shot/Iterations", importance = Importance.DEBUG)
+  public int getShotIterations() {
+    return shotParameters.iterations();
+  }
+
+  @Logged(name = "Shot/Turret", importance = Importance.CRITICAL)
+  private Angle turretAngle = Degrees.zero();
 
   private RobotState() {
     if (Constants.Settings.ctreLoggingEnabled) {
@@ -160,6 +174,10 @@ public class RobotState {
     shotCalculator.putLUTEntry(Meters.of(3.0), 3150, 20, 1.00);
     shotCalculator.putLUTEntry(Meters.of(2.5), 3050, 15, 1.00);
     shotCalculator.putLUTEntry(Meters.of(2.0), 2900, 15, 0.90);
+
+    // passing distances
+    // TODO: 5.5m, 6.0m, 6.5m
+    shotCalculator.putLUTEntry(Meters.of(7.0), 5000, 30, 1.5);
   }
 
   /** Odometry trust (0 - no trust, 1 - full trust) */
@@ -350,7 +368,8 @@ public class RobotState {
     return turretDesired.minus(turretZero).getMeasure();
   }
 
-  public Optional<Angle> getTurretAngleSetpoint() {
+  /** Returns effective setpoint for the turret to track to. */
+  public Optional<Angle> getTurretAngle() {
     return Optional.of(turretAngle);
   }
 
@@ -360,6 +379,7 @@ public class RobotState {
     return pose.getTranslation().plus(offsetXY);
   }
 
+  /** Returns effective shooter parameters. */
   public Optional<Pair<Double, Double>> getShooterParameters() {
     if (shotParameters.quality() < 0.5) return Optional.empty();
     return Optional.of(Pair.of(shotAngle.lastValue(), shotVelocity.lastValue()));
@@ -461,14 +481,18 @@ public class RobotState {
     phaseRemainingTime = Seconds.of(phaseInfo.remainingTime());
     hubActive = phaseInfo.active();
 
-    // determine effective turret angle
-    final var shotTarget = Field.fieldTranslation.apply(Field.kHubCenter);
-    turretAngle = getTurretAngleTo(shotTarget);
-    shotParameters =
-        shotCalculator.calculate(getRobotPose(), drivetrain.getFieldSpeeds(), shotTarget);
+    // determine effective turret angle and shot parameters
+    final var pose = getRobotPose();
+    final var shotTarget =
+        Field.isInShootingZone(pose.getTranslation())
+            ? Field.fieldTranslation.apply(Field.kHubCenter)
+            : getPassingTarget();
+
+    shotParameters = shotCalculator.calculate(pose, drivetrain.getFieldSpeeds(), shotTarget);
     shotConfidence = computeShotConfidence(shotParameters);
     shotVelocity.calculate(shotParameters.shooterVelocity());
     shotAngle.calculate(shotParameters.shooterAngle());
+    turretAngle = getTurretAngleTo(shotParameters.target());
   }
 
   /**
@@ -565,31 +589,80 @@ public class RobotState {
     }
   }
 
+  /** Returns appropriate passing target based on the selection and robot pose. */
+  public Translation2d getPassingTarget() {
+    return getPassingTarget(passingPoint);
+  }
+
+  /** Returns appropriate passing point based on the selection and robot pose. */
+  public Translation2d getPassingTarget(PassingPoint targetPoint) {
+    final var pose = getRobotPose();
+
+    // determine what Y side of the field we are on
+    var originY = 0.0;
+    var signY = 1.0;
+
+    if (pose.getY() > Field.kFieldHalfWidth) {
+      originY = Field.kFieldWidth;
+      signY = -1.0;
+    }
+
+    switch (targetPoint) {
+      case kTrenchLower:
+        return new Translation2d(
+            Field.fieldX.apply(Field.kStartingLineX), Field.fieldY.apply(Field.kTrenchWidth / 2));
+
+      case kTrenchUpper:
+        return new Translation2d(
+            Field.fieldX.apply(Field.kStartingLineX),
+            Field.fieldY.apply(Field.kFieldWidth - Field.kTrenchWidth / 2));
+
+      case kTrenchAuto:
+        return new Translation2d(
+            Field.fieldX.apply(Field.kStartingLineX), originY + signY * Field.kTrenchWidth / 2);
+
+      default:
+        return new Translation2d(
+            Field.fieldX.apply(Field.kDefaultPassingPoint.getX()),
+            originY + signY * Field.kDefaultPassingPoint.getY());
+    }
+  }
+
   /** Determines whether shooter position is within trench zone. */
   public boolean isShooterWithinTrench() {
-    return Field.isInTrenchZone(getShooterFieldPose(getRobotPose()));
+    return Field.isInTrenchZone(getShooterFieldPose(getRobotPose())).isPresent();
   }
 
-  @Logged(name = "HubShotDistance", importance = Importance.DEBUG)
-  public Distance hubShotDistance() {
+  private static final Time kTrenchZonePredictiveTime = Seconds.of(0.5);
+
+  /** Determines whether robot is within or entering trench zone. */
+  public Optional<Translation2d> isRobotNearTrench() {
+    return Field.isInTrenchZone(
+        getRobotPose(), drivetrain.getFieldSpeeds(), kTrenchZonePredictiveTime);
+  }
+
+  @Logged(name = "Tuning/ActualShotDistance", importance = Importance.DEBUG)
+  public Distance getActualShotDistance() {
     final var target = Field.fieldTranslation.apply(Field.kHubCenter);
-    final var robotPose = getRobotPose();
-    final var offsetXY = kShooterOffsetXY.rotateBy(robotPose.getRotation());
-    final var shooterXY = robotPose.getTranslation().plus(offsetXY);
-
-    return Meters.of(shooterXY.minus(target).getNorm());
+    return Meters.of(getShooterFieldPose(getRobotPose()).minus(target).getNorm());
   }
 
-  private static final Tunable.DoubleValue shootDistanceToHub =
-      Tunable.value("ShootDistanceToHub", 3);
+  @Logged(name = "Tuning/ActualPassDistance", importance = Importance.DEBUG)
+  public Distance getActualPasstDistance() {
+    final var target = getPassingTarget(PassingPoint.kTrenchUpper);
+    return Meters.of(getShooterFieldPose(getRobotPose()).minus(target).getNorm());
+  }
 
-  @Logged(name = "ShootPose", importance = Importance.DEBUG)
-  public Pose2d getShootPose() {
+  private static final Tunable.DoubleValue tuningShotDistance =
+      Tunable.value("Tuning/RequiredShotDistance", 3);
+
+  @Logged(name = "Tuning/ShotPose", importance = Importance.DEBUG)
+  public Pose2d getTuningShotPose() {
     final var target = Field.fieldTranslation.apply(Field.kHubCenter);
     final var corner = Field.fieldTranslation.apply(new Translation2d(0, Field.kFieldWidth));
 
     final var angle = target.minus(corner).getAngle();
-    final var position = new Translation2d(shootDistanceToHub.get(), 0).rotateBy(angle);
+    final var position = new Translation2d(tuningShotDistance.get(), 0).rotateBy(angle);
 
     final var robotRotation = angle.rotateBy(Rotation2d.k180deg);
     final var offsetXY = kShooterOffsetXY.rotateBy(robotRotation);

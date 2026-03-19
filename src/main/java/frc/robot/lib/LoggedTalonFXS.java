@@ -24,7 +24,6 @@ public class LoggedTalonFXS extends TalonFXS {
   private final StatusSignal<Angle> positionSignal;
   private final StatusSignal<AngularVelocity> velocitySignal;
   private final StatusSignal<Double> closedLoopReferenceSignal;
-  private final StatusSignal<Double> closedLoopReferenceSlopeSignal;
   private final double statorCurrentLimit;
 
   private static final double kFastUpdateFrequencyHz = 250.0;
@@ -66,15 +65,13 @@ public class LoggedTalonFXS extends TalonFXS {
     temperatureSignal = getDeviceTemp();
     supplyCurrentSignal = getSupplyCurrent();
     closedLoopReferenceSignal = getClosedLoopReference();
-    closedLoopReferenceSlopeSignal = getClosedLoopReferenceSlope();
 
     PhoenixUtil.registerSignals(
         this,
         kSlowUpdateFrequencyHz,
         temperatureSignal,
         supplyCurrentSignal,
-        closedLoopReferenceSignal,
-        closedLoopReferenceSlopeSignal);
+        closedLoopReferenceSignal);
 
     dutyCycleSignal = getDutyCycle();
     torqueCurrentSignal = getTorqueCurrent();
@@ -127,11 +124,6 @@ public class LoggedTalonFXS extends TalonFXS {
   @Logged(name = "MotorClosedLoopReference", importance = Importance.DEBUG)
   public double getMotorClosedLoopReference() {
     return closedLoopReferenceSignal.getValue();
-  }
-
-  @Logged(name = "MotorClosedLoopReferenceSlope", importance = Importance.DEBUG)
-  public double getMotorClosedLoopReferenceSlope() {
-    return closedLoopReferenceSlopeSignal.getValue();
   }
 
   /** Detects stall condition of the motor. */

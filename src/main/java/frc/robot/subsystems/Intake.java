@@ -16,11 +16,12 @@ import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
+import frc.robot.lib.EnergyReporter;
 import frc.robot.lib.LoggedTalonFX;
 import frc.robot.lib.PhoenixUtil;
 import frc.robot.lib.Tunable;
 
-public final class Intake extends SubsystemBase {
+public final class Intake extends SubsystemBase implements EnergyReporter {
   // MAKE SURE TO UPDATE THESE VALUES AFTER TUNING
   // DO NOT USE THESE VALUES DIRECTLY IN PERIODIC CODE,
   // USE THEM TO INITIALIZE TUNABLE VALUES AND CONTROLLERS
@@ -249,6 +250,11 @@ public final class Intake extends SubsystemBase {
               stopped = false;
             })
         .withName("IntakeStart");
+  }
+
+  @Override
+  public double getTotalSupplyCurrent() {
+    return Math.abs(armMotor.getSupplyCurrentAmps()) + Math.abs(rollerMotor.getSupplyCurrentAmps());
   }
 
   // spotless:off

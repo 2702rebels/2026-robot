@@ -19,10 +19,11 @@ import edu.wpi.first.wpilibj2.command.ScheduleCommand;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 import frc.robot.lib.CANduit;
+import frc.robot.lib.EnergyReporter;
 import frc.robot.lib.LoggedTalonFXS;
 import frc.robot.lib.Tunable;
 
-public final class Climb extends SubsystemBase {
+public final class Climb extends SubsystemBase implements EnergyReporter {
   // MAKE SURE TO UPDATE THESE VALUES AFTER TUNING
   // DO NOT USE THESE VALUES DIRECTLY IN PERIODIC CODE,
   // USE THEM TO INITIALIZE TUNABLE VALUES AND CONTROLLERS
@@ -263,6 +264,11 @@ public final class Climb extends SubsystemBase {
                         () -> {
                           state = State.kNeutral;
                         }))));
+  }
+
+  @Override
+  public double getTotalSupplyCurrent() {
+    return Math.abs(motor.getSupplyCurrentAmps());
   }
 
   // spotless:off

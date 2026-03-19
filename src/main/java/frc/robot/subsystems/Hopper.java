@@ -11,10 +11,11 @@ import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
+import frc.robot.lib.EnergyReporter;
 import frc.robot.lib.LoggedTalonFX;
 import frc.robot.lib.Tunable;
 
-public final class Hopper extends SubsystemBase {
+public final class Hopper extends SubsystemBase implements EnergyReporter {
   // MAKE SURE TO UPDATE THESE VALUES AFTER TUNING
   // DO NOT USE THESE VALUES DIRECTLY IN PERIODIC CODE,
   // USE THEM TO INITIALIZE TUNABLE VALUES AND CONTROLLERS
@@ -125,6 +126,12 @@ public final class Hopper extends SubsystemBase {
   /** Enables the subsystem. */
   public Command enable() {
     return runEnd(() -> enabled = true, () -> enabled = false).withName("EnableShooter");
+  }
+
+  @Override
+  public double getTotalSupplyCurrent() {
+    return Math.abs(feedMotor.getSupplyCurrentAmps())
+        + Math.abs(spindexerMotor.getSupplyCurrentAmps());
   }
 
   // spotless:off
