@@ -10,7 +10,6 @@ import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.filter.Debouncer.DebounceType;
-import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.units.measure.Time;
 import edu.wpi.first.wpilibj.Alert;
 import edu.wpi.first.wpilibj.Alert.AlertType;
@@ -18,10 +17,12 @@ import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.GenericHID.RumbleType;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
+import edu.wpi.first.wpilibj2.command.button.CommandGenericHID;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
+import frc.robot.RobotState.PassingPoint;
 import frc.robot.generated.TunerConstants;
 import frc.robot.lib.CANduit;
 import frc.robot.lib.EnergyTracker;
@@ -43,6 +44,8 @@ public class RobotContainer {
   private final CommandXboxController controllerDriver = new CommandXboxController(0);
   private final CommandSwerveDrivetrain drivetrain = TunerConstants.createDrivetrain();
   private final GamePhaseTracker gamePhaseTracker = new GamePhaseTracker();
+
+  private final CommandGenericHID buttonator = new CommandGenericHID(1);
 
   private final LedResource led = new LedResource(Constants.PwmID.LED);
   private final LedFeedback ledFeedback = new LedFeedback(led, this::getDefaultLedFeedback);
@@ -166,7 +169,7 @@ public class RobotContainer {
     drivetrain.registerTelemetry(state::updateSwerveTelemetry);
 
     shootButton
-        .and(new Trigger(turret::isAtSetpoint).debounce(250, DebounceType.kFalling))
+        .and(new Trigger(turret::isAtSetpoint).debounce(0.25, DebounceType.kFalling))
         .whileTrue(hopper.enable());
 
     shootButton.whileTrue(shooter.enable());
@@ -181,6 +184,19 @@ public class RobotContainer {
 
     climbButton.and(climb::isReady).onTrue(climb.engage());
     resetButton.and(climb::isEngaged).onTrue(climb.disengage());
+
+    buttonator
+        .button(1)
+        .onTrue(Commands.runOnce(() -> state.setPassingTarget(PassingPoint.kDefault)));
+    buttonator
+        .button(2)
+        .onTrue(Commands.runOnce(() -> state.setPassingTarget(PassingPoint.kTrenchAuto)));
+    buttonator
+        .button(3)
+        .onTrue(Commands.runOnce(() -> state.setPassingTarget(PassingPoint.kTrenchLower)));
+    buttonator
+        .button(4)
+        .onTrue(Commands.runOnce(() -> state.setPassingTarget(PassingPoint.kTrenchUpper)));
 
     // controllerDriver
     //     .povLeft()
@@ -203,30 +219,30 @@ public class RobotContainer {
         .onTrue(Commands.runOnce(gamePhaseTracker::startPeriod).ignoringDisable(true));
 
     // driver assist for through-trench driving
-    new Trigger(() -> state.isRobotNearTrench().isPresent())
-        .debounce(0.1)
-        .onTrue(
-            Commands.runOnce(
-                () -> {
-                  final var trench = state.isRobotNearTrench();
-                  if (trench.isPresent()) {
-                    final var heading = drivetrain.getPose().getRotation().getDegrees();
-                    // snap heading to 0 or 180 degrees
-                    final var orientationLockTo =
-                        Math.abs(MathUtil.inputModulus(heading, -180, 180)) < 90
-                            ? Rotation2d.kZero
-                            : Rotation2d.k180deg;
+    // new Trigger(() -> state.isRobotNearTrench().isPresent())
+    //     .debounce(0.1)
+    //     .onTrue(
+    //         Commands.runOnce(
+    //             () -> {
+    //               final var trench = state.isRobotNearTrench();
+    //               if (trench.isPresent()) {
+    //                 final var heading = drivetrain.getPose().getRotation().getDegrees();
+    //                 // snap heading to 0 or 180 degrees
+    //                 final var orientationLockTo =
+    //                     Math.abs(MathUtil.inputModulus(heading, -180, 180)) < 90
+    //                         ? Rotation2d.kZero
+    //                         : Rotation2d.k180deg;
 
-                    drivetrain.setOrientationLock(orientationLockTo);
-                    drivetrain.setCrossTrackYAssist(trench.get().getY());
-                  }
-                }))
-        .onFalse(
-            Commands.runOnce(
-                () -> {
-                  drivetrain.clearOrientationLock();
-                  drivetrain.clearCrossTrackYAssist();
-                }));
+    //                 drivetrain.setOrientationLock(orientationLockTo);
+    //                 drivetrain.setCrossTrackYAssist(trench.get().getY());
+    //               }
+    //             }))
+    //     .onFalse(
+    //         Commands.runOnce(
+    //             () -> {
+    //               drivetrain.clearOrientationLock();
+    //               drivetrain.clearCrossTrackYAssist();
+    //             }));
 
     // alert for missing auto win alliance
     RobotModeTriggers.teleop()

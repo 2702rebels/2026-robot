@@ -3,8 +3,9 @@ package frc.robot.subsystems;
 import static edu.wpi.first.units.Units.*;
 
 import com.ctre.phoenix6.CANBus;
-import com.ctre.phoenix6.controls.MotionMagicExpoTorqueCurrentFOC;
+import com.ctre.phoenix6.controls.PositionTorqueCurrentFOC;
 import com.ctre.phoenix6.signals.NeutralModeValue;
+import com.ctre.phoenix6.signals.StaticFeedforwardSignValue;
 import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.math.MathUtil;
@@ -28,13 +29,13 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
   // MAKE SURE TO UPDATE THESE VALUES AFTER TUNING
   // DO NOT USE THESE VALUES DIRECTLY IN PERIODIC CODE,
   // USE THEM TO INITIALIZE TUNABLE VALUES AND CONTROLLERS
-  private static final double __kS = 1.5;
-  private static final double __kA = 0.07;
-  private static final double __kV = 0.05;
-  private static final double __kP = 50;
-  private static final double __kD = 3.3;
-  private static final double __kMaxVelocity = 0; // rps
-  private static final double __kMaxAcceleration = 0; // rps/s
+  private static final double __kS = 0; // 1.5;
+  private static final double __kA = 0; // 0.07;
+  private static final double __kV = 0; // 0.05;
+  private static final double __kP = 40; // 50;
+  private static final double __kD = 4; // 3.3;
+  private static final double __kMaxVelocity = 1.0; // rps
+  private static final double __kMaxAcceleration = __kMaxVelocity / 0.02; // 200ms to max velocity
   private static final double __kJerk = 0;
 
   private static final double __kSetpointManual = 0;
@@ -63,7 +64,8 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
   private final MedianFilter encoder1Filter = new MedianFilter(5);
   private final MedianFilter encoder2Filter = new MedianFilter(5);
 
-  private final MotionMagicExpoTorqueCurrentFOC control;
+  // private final MotionMagicExpoTorqueCurrentFOC control;
+  private final PositionTorqueCurrentFOC control;
 
   private final CANduit.PWMInput encoder1;
   private final CANduit.PWMInput encoder2;
@@ -73,7 +75,7 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
   private boolean initialized = false;
 
   // external turrent position supplier in tracking mode
-  private Supplier<Optional<Angle>> trackingAngleSupplier = () -> Optional.empty();
+  private Supplier<Angle> trackingAngleSupplier = () -> Degrees.zero();
 
   private static final double kTurretTeeth = 218.0;
   private static final double kEncoder1Ratio = kTurretTeeth / 17.0;
@@ -86,9 +88,11 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
 
   private static final double kStatorCurrentLimit = 60.0;
   private static final double kConversionFactor = kTurretTeeth * 3.0 / 22.0;
-  private static final double kMinPosition = -180.0; // degrees
-  private static final double kMaxPosition = 180.0; // degrees
-  private static final double kTolerance = 1.0; // degrees
+  private static final double kMinPosition = -200.0; // degrees
+  private static final double kMaxPosition = 200.0; // degrees
+  private static final double kMinOverlap = -360 - kMinPosition;
+  private static final double kMaxOverlap = 360 - kMaxPosition;
+  private static final double kTolerance = 3.0; // degrees
 
   // Expo kV and kA characterize the profile not gains
   // https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/motion-magic.html#motion-magic-expo
@@ -101,7 +105,7 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
   // kA = 0.04 at 12V -> max acceleration = 300 rps/s
   //
   // SMALLER VALUES REPRESENT HIGHER MAX VELOCITY / ACCELERATION
-  private static final double __kVExpo = 12.0 / (2.0 * kConversionFactor); // 2 rps
+  private static final double __kVExpo = 12.0 / (2.0 * kConversionFactor); // 1 rps
   private static final double __kAExpo = __kVExpo * 0.2; // 200ms to max velocity
 
   /** Convert turret angular position to motor position in rotations. */
@@ -137,6 +141,8 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
               config.Slot0.kV = __kV;
               config.Slot0.kP = __kP;
               config.Slot0.kD = __kD;
+              config.Slot0.StaticFeedforwardSign = StaticFeedforwardSignValue.UseClosedLoopSign;
+
               config.MotionMagic.MotionMagicCruiseVelocity = __kMaxVelocity;
               config.MotionMagic.MotionMagicAcceleration = __kMaxAcceleration;
               config.MotionMagic.MotionMagicJerk = __kJerk;
@@ -145,10 +151,8 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
             });
 
     control =
-        new MotionMagicExpoTorqueCurrentFOC(0)
-            .withSlot(0)
-            .withUseTimesync(true)
-            .withUpdateFreqHz(0);
+        // new MotionMagicExpoTorqueCurrentFOC(0)
+        new PositionTorqueCurrentFOC(0).withSlot(0).withUseTimesync(true).withUpdateFreqHz(0);
 
     // make configuration tunable (must be done after configuration is bound to the motor)
     Tunable.bind("Turret", motor);
@@ -316,7 +320,7 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
       if (kSetpointManualOverride.get()) {
         setAngle(Degrees.of(kSetpointManual.get()));
       } else {
-        trackingAngleSupplier.get().ifPresent(this::setAngle);
+        setAngle(trackingAngleSupplier.get());
       }
 
       motor.setControl(control.withPosition(toMotorPosition(setpoint)));
@@ -324,7 +328,16 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
   }
 
   public void setAngle(Angle value) {
-    setpoint = Degrees.of(MathUtil.clamp(value.in(Degrees), kMinPosition, kMaxPosition));
+    final var currentDegrees = getPosition().in(Degrees);
+    var valueDegrees = MathUtil.clamp(value.in(Degrees), kMinPosition, kMaxPosition);
+
+    if (valueDegrees >= kMaxOverlap && currentDegrees < -90) {
+      valueDegrees -= 360.0;
+    } else if (valueDegrees <= kMinOverlap && currentDegrees > 90) {
+      valueDegrees += 360.0;
+    }
+
+    setpoint = Degrees.of(valueDegrees);
   }
 
   @Logged(name = "Initialized", importance = Importance.CRITICAL)
@@ -355,7 +368,7 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
     return !initialized && hasSensors();
   }
 
-  public void setTrackingSupplier(Supplier<Optional<Angle>> supplier) {
+  public void setTrackingSupplier(Supplier<Angle> supplier) {
     trackingAngleSupplier = supplier;
   }
 

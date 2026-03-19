@@ -83,7 +83,7 @@ public class RobotState {
   // std.dev for vision: we do trust vision so set these relatively low
   private static final Matrix<N3, N1> kVisionStdDevs =
       VecBuilder.fill(
-          Units.inchesToMeters(0.5), Units.inchesToMeters(0.5), Units.degreesToRadians(5));
+          Units.inchesToMeters(0.5), Units.inchesToMeters(0.5), Units.degreesToRadians(10));
 
   // timestamped log of recently measured (within last second) chassis speeds
   private final TimestampedCircularBuffer<ChassisSpeeds> chassisSpeeds =
@@ -129,7 +129,9 @@ public class RobotState {
 
   private final MedianFilter shotVelocity = new MedianFilter(5);
   private final MedianFilter shotAngle = new MedianFilter(5);
+  private final MedianFilter turretAngle = new MedianFilter(5);
 
+  @Logged(name = "PassingPoint", importance = Importance.CRITICAL)
   private PassingPoint passingPoint = PassingPoint.kDefault;
 
   @Logged(name = "Shot/Confidence", importance = Importance.CRITICAL)
@@ -156,7 +158,9 @@ public class RobotState {
   }
 
   @Logged(name = "Shot/Turret", importance = Importance.CRITICAL)
-  private Angle turretAngle = Degrees.zero();
+  public Angle getTurretAngle() {
+    return Degrees.of(turretAngle.lastValue());
+  }
 
   private RobotState() {
     if (Constants.Settings.ctreLoggingEnabled) {
@@ -212,6 +216,7 @@ public class RobotState {
   }
 
   /** Age (milliseconds) of the most recent vision pose */
+  @Logged(name = "VisionPoseAge", importance = Importance.DEBUG)
   public double getVisionPoseAge() {
     return visionPoseTimestamp > 0
         ? (RobotController.getTime() - visionPoseTimestamp) / 1000.0
@@ -222,7 +227,7 @@ public class RobotState {
   @Logged(name = "HasRecentVisionPose", importance = Importance.CRITICAL)
   public boolean hasRecentVisionPose() {
     final var age = getVisionPoseAge();
-    return age >= 0 && age < 100;
+    return age >= 0 && age < 120;
   }
 
   /** Roll angle */
@@ -356,8 +361,8 @@ public class RobotState {
     return sum <= 0 ? 0 : MathUtil.clamp(Math.exp(sum / kConfidenceFactor), 0, 1);
   }
 
-  /** Determines turret angle to the target. */
-  private Angle getTurretAngleTo(Translation2d target) {
+  /** Determines turret angle to the target in degrees. */
+  private double getTurretAngleTo(Translation2d target) {
     final var pose = getRobotPose();
     final var shooterXY = getShooterFieldPose(pose);
 
@@ -365,12 +370,7 @@ public class RobotState {
     final var turretDesired = target.minus(shooterXY).getAngle();
     final var turretZero = pose.getRotation().plus(kTurretOffset);
 
-    return turretDesired.minus(turretZero).getMeasure();
-  }
-
-  /** Returns effective setpoint for the turret to track to. */
-  public Optional<Angle> getTurretAngle() {
-    return Optional.of(turretAngle);
+    return turretDesired.minus(turretZero).getDegrees();
   }
 
   /** Returns the (X,Y) position of the shoooter in the field frame of reference. */
@@ -492,7 +492,7 @@ public class RobotState {
     shotConfidence = computeShotConfidence(shotParameters);
     shotVelocity.calculate(shotParameters.shooterVelocity());
     shotAngle.calculate(shotParameters.shooterAngle());
-    turretAngle = getTurretAngleTo(shotParameters.target());
+    turretAngle.calculate(getTurretAngleTo(shotParameters.target()));
   }
 
   /**
@@ -587,6 +587,11 @@ public class RobotState {
             (moduleTranslationVelocity.getNorm() - robotVelocityNorm) / robotVelocityNorm;
       }
     }
+  }
+
+  /** Sets passing target. */
+  public void setPassingTarget(PassingPoint targetPoint) {
+    passingPoint = targetPoint;
   }
 
   /** Returns appropriate passing target based on the selection and robot pose. */
