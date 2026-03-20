@@ -35,9 +35,10 @@ public class LedFeedback extends SubsystemBase {
   }
 
   // "evergreen" patterns
-  private static LEDPattern defaultPatternRed = LEDPattern.solid(Color.kRed);
-  private static LEDPattern defaultPatternBlue = LEDPattern.solid(Color.kBlue);
-  private static LEDPattern disabledPattern = LedResource.breathe(Color.kPurple, 5);
+  private static LEDPattern defaultPattern = LEDPattern.solid(Color.kWhite);
+  private static LEDPattern disabledPatternRed = LedResource.breathe(Color.kRed, 5);
+  private static LEDPattern disabledPatternBlue = LedResource.breathe(Color.kBlue, 5);
+  private static LEDPattern disabledPatternNone = LedResource.breathe(Color.kPurple, 5);
   private static LEDPattern estoppedPattern = LedResource.blink(Color.kPurple);
   private static LEDPattern successPattern = LedResource.blink(Color.kYellow);
   private static LEDPattern readyPattern = LedResource.blink(Color.kWhite);
@@ -63,16 +64,19 @@ public class LedFeedback extends SubsystemBase {
           if (DriverStation.isEStopped()) {
             pattern = estoppedPattern;
           } else if (DriverStation.isDisabled()) {
-            pattern = disabledPattern;
+            // select pattern based on the alliance color
+            final var alliance = DriverStation.getAlliance();
+            if (alliance.isPresent()) {
+              pattern = alliance.get() == DriverStation.Alliance.Red
+                ? disabledPatternRed
+                : disabledPatternBlue;
+            } else {
+              pattern = disabledPatternNone;
+            }
           } else {
             final var state = supplier.get(); // poll current state
             if (state == Type.kNone) {
-              // select pattern based on the alliance color
-              final var alliance = DriverStation.getAlliance();
-              pattern =
-                  alliance.isPresent() && alliance.get() == DriverStation.Alliance.Red
-                      ? defaultPatternRed
-                      : defaultPatternBlue;
+              pattern = defaultPattern;
             } else {
               pattern = kStatePatterns.get(state);
             }
