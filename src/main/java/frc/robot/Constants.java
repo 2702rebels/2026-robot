@@ -8,7 +8,6 @@ import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.units.measure.LinearAcceleration;
 import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.units.measure.Time;
-import frc.robot.generated.TunerConstants;
 
 public final class Constants {
   /** Deployment mode */
@@ -110,7 +109,7 @@ public final class Constants {
 
   public static final class DriveConstants {
     /** Maximum linear speed */
-    public static final LinearVelocity maxSpeed = TunerConstants.kSpeedAt12Volts;
+    public static final LinearVelocity maxSpeed = MetersPerSecond.of(4);
 
     /** Maximum acceleration time */
     public static final Time maxAccelerationTime = Seconds.of(0.5);

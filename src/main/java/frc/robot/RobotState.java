@@ -11,7 +11,6 @@ import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.Matrix;
 import edu.wpi.first.math.Pair;
 import edu.wpi.first.math.VecBuilder;
-import edu.wpi.first.math.filter.LinearFilter;
 import edu.wpi.first.math.filter.MedianFilter;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
@@ -22,8 +21,6 @@ import edu.wpi.first.math.numbers.N3;
 import edu.wpi.first.math.util.Units;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.Distance;
-import edu.wpi.first.units.measure.LinearAcceleration;
-import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.units.measure.Time;
 import edu.wpi.first.units.measure.Voltage;
 import edu.wpi.first.wpilibj.RobotController;
@@ -69,9 +66,9 @@ public class RobotState {
   private static final double kLowBatteryVoltage = 11.0;
 
   // shooting constants
-  private static final Distance kMinScoreDistance = Meters.of(0.5);
-  private static final Distance kMaxScoreDistance = Meters.of(5);
-  private static final LinearVelocity kMaxScoreSpeed = MetersPerSecond.of(4);
+  private static final Distance kMinScoreDistance = Meters.of(1.5);
+  private static final Distance kMaxScoreDistance = Meters.of(6);
+  private static final double kMaxScoreSpeed = 2.5; // m/s
 
   // offset to the center of the turret in meters
   public static final Translation2d kShooterOffsetXY =
@@ -82,29 +79,11 @@ public class RobotState {
 
   // std.dev for vision: we do trust vision so set these relatively low
   private static final Matrix<N3, N1> kVisionStdDevs =
-      VecBuilder.fill(
-          Units.inchesToMeters(0.5), Units.inchesToMeters(0.5), Units.degreesToRadians(10));
+      VecBuilder.fill(Units.inchesToMeters(5), Units.inchesToMeters(5), Units.degreesToRadians(10));
 
   // timestamped log of recently measured (within last second) chassis speeds
   private final TimestampedCircularBuffer<ChassisSpeeds> chassisSpeeds =
       new TimestampedCircularBuffer<>(50);
-
-  // previously recorded chassis speed (field relative)
-  private ChassisSpeeds prevChassisSpeed = null;
-
-  // timestamp of previously recorded chassis speed in seconds
-  // NOTE: this timestamp is in timebase of the CTRE status signals,
-  // which is based on a monotonic continuous time source that does
-  // NOT have to match FPGA time on the robot
-  private double prevChassisSpeedTimestamp = -1;
-
-  // acceleration estimate (SMA) based on chassis speed delta
-  private final LinearFilter accelerationEstimate = LinearFilter.movingAverage(5);
-
-  @Logged(name = "Acceleration", importance = Importance.DEBUG)
-  public LinearAcceleration getAcceleration() {
-    return MetersPerSecondPerSecond.of(accelerationEstimate.lastValue());
-  }
 
   // bound drivetrain
   private CommandSwerveDrivetrain drivetrain;
@@ -123,9 +102,13 @@ public class RobotState {
   private boolean hubActive;
 
   private final ShotCalculator shotCalculator;
+  private final ShotCalculator passCalculator;
+
   private ShotCalculator.ShotParameters shotParameters =
       new ShotCalculator.ShotParameters(
           Translation2d.kZero, Meters.zero(), Seconds.zero(), 0, 0, 0, 0);
+
+  private boolean shotAllowed;
 
   private final MedianFilter shotVelocity = new MedianFilter(5);
   private final MedianFilter shotAngle = new MedianFilter(5);
@@ -162,26 +145,45 @@ public class RobotState {
     return Degrees.of(turretAngle.lastValue());
   }
 
+  @Logged(name = "Shot/Allowed", importance = Importance.CRITICAL)
+  public boolean isShotAllowed() {
+    return shotAllowed;
+  }
+
   private RobotState() {
     if (Constants.Settings.ctreLoggingEnabled) {
       SignalLogger.setPath("/u/logs/ctre/");
       SignalLogger.start();
     }
 
-    // initialize shot calculator LUT
+    // initialize shot/pass calculator LUT
     shotCalculator = new ShotCalculator(kShooterOffsetXY);
+    passCalculator = new ShotCalculator(kShooterOffsetXY);
 
-    shotCalculator.putLUTEntry(Meters.of(5.0), 4150, 25, 1.25);
-    shotCalculator.putLUTEntry(Meters.of(4.5), 3900, 20, 1.25);
-    shotCalculator.putLUTEntry(Meters.of(4.0), 3600, 20, 1.20);
-    shotCalculator.putLUTEntry(Meters.of(3.5), 3450, 20, 1.10);
-    shotCalculator.putLUTEntry(Meters.of(3.0), 3150, 20, 1.00);
-    shotCalculator.putLUTEntry(Meters.of(2.5), 3050, 15, 1.00);
-    shotCalculator.putLUTEntry(Meters.of(2.0), 2900, 15, 0.90);
+    // shooting
+    shotCalculator.putLUTEntry(Meters.of(1.25), 3050, 10, 0.75);
+    shotCalculator.putLUTEntry(Meters.of(1.50), 3000, 10, 0.75);
+    shotCalculator.putLUTEntry(Meters.of(1.80), 2900, 15, 0.80);
+    shotCalculator.putLUTEntry(Meters.of(2.00), 3000, 15, 0.85);
+    shotCalculator.putLUTEntry(Meters.of(2.50), 3150, 20, 0.92);
+    shotCalculator.putLUTEntry(Meters.of(2.75), 3300, 20, 0.95);
+    shotCalculator.putLUTEntry(Meters.of(3.00), 3450, 20, 1.00);
+    shotCalculator.putLUTEntry(Meters.of(3.20), 3550, 20, 1.05);
+    shotCalculator.putLUTEntry(Meters.of(3.50), 3800, 20, 1.10);
+    shotCalculator.putLUTEntry(Meters.of(3.80), 4000, 20, 1.15);
+    shotCalculator.putLUTEntry(Meters.of(4.00), 4075, 20, 1.18);
+    shotCalculator.putLUTEntry(Meters.of(4.20), 4150, 20, 1.21);
+    shotCalculator.putLUTEntry(Meters.of(4.50), 4300, 20, 1.26);
+    shotCalculator.putLUTEntry(Meters.of(5.60), 4400, 30, 1.45);
+    shotCalculator.putLUTEntry(Meters.of(5.80), 4500, 30, 1.50);
 
-    // passing distances
-    // TODO: 5.5m, 6.0m, 6.5m
-    shotCalculator.putLUTEntry(Meters.of(7.0), 5000, 30, 1.5);
+    // passing
+    passCalculator.putLUTEntry(Meters.of(3.00), 2900, 25, 1.00);
+    passCalculator.putLUTEntry(Meters.of(4.00), 3600, 25, 1.20);
+    passCalculator.putLUTEntry(Meters.of(5.00), 3850, 25, 1.35);
+    passCalculator.putLUTEntry(Meters.of(6.00), 4300, 25, 1.50);
+    passCalculator.putLUTEntry(Meters.of(7.00), 4800, 30, 1.70);
+    passCalculator.putLUTEntry(Meters.of(8.00), 5250, 30, 1.85);
   }
 
   /** Odometry trust (0 - no trust, 1 - full trust) */
@@ -195,6 +197,10 @@ public class RobotState {
   /** Battery voltage */
   @Logged(name = "BatteryVoltage", importance = Importance.CRITICAL)
   private Voltage batteryVoltage = Volts.zero();
+
+  /** Robot speed */
+  @Logged(name = "RobotSpeed", importance = Importance.CRITICAL)
+  private double robotSpeed = 0;
 
   /** Low battery condition */
   @Logged(name = "IsLowBattery", importance = Importance.CRITICAL)
@@ -306,61 +312,6 @@ public class RobotState {
     drivetrain.resetPose(pose);
   }
 
-  private static final double kShotQualityFactor = 1.0;
-  private static final double kOdometryFactor = 1.0;
-  private static final double kDistanceFactor = 0.5;
-  private static final double kAccelerationFactor = 0.8;
-
-  private static final double kConfidenceFactor =
-      kShotQualityFactor + kOdometryFactor + kDistanceFactor + kAccelerationFactor;
-
-  private static final double kMaxAcceleration =
-      Constants.DriveConstants.maxAcceleration.in(MetersPerSecondPerSecond);
-
-  private static final double kScoreDistanceRange =
-      kMaxScoreDistance.in(Meters) - kMinScoreDistance.in(Meters);
-
-  /**
-   * Computes a shot confidence score between 0 and 1 as a weighted geometry mean of multiple
-   * factors: shot solution quality, acceleration, vision, and distance from range edges.
-   */
-  private double computeShotConfidence(ShotCalculator.ShotParameters parameters) {
-    var sum = 0.0;
-
-    final var q = parameters.quality();
-    if (q <= 0) {
-      return 0;
-    }
-
-    sum += kShotQualityFactor * Math.log(q);
-
-    if (odometryTrust <= 0) {
-      return 0;
-    }
-
-    sum += kOdometryFactor * Math.log(odometryTrust);
-
-    // distance factor
-    var df = parameters.distance().minus(kMinScoreDistance).in(Meters) / kScoreDistanceRange;
-    df = MathUtil.clamp(1.0 - 2.0 * Math.abs(df - 0.5), 0, 1);
-    if (df <= 0) {
-      return 0;
-    }
-
-    sum += kDistanceFactor * Math.log(df);
-
-    // acceleration factor
-    final var af =
-        MathUtil.clamp(1.0 - Math.abs(accelerationEstimate.lastValue()) / kMaxAcceleration, 0, 1);
-    if (af <= 0) {
-      return 0;
-    }
-
-    sum += kAccelerationFactor * Math.log(af);
-
-    return sum <= 0 ? 0 : MathUtil.clamp(Math.exp(sum / kConfidenceFactor), 0, 1);
-  }
-
   /** Determines turret angle to the target in degrees. */
   private double getTurretAngleTo(Translation2d target) {
     final var pose = getRobotPose();
@@ -381,8 +332,9 @@ public class RobotState {
 
   /** Returns effective shooter parameters. */
   public Optional<Pair<Double, Double>> getShooterParameters() {
-    if (shotParameters.quality() < 0.5) return Optional.empty();
-    return Optional.of(Pair.of(shotAngle.lastValue(), shotVelocity.lastValue()));
+    return shotAllowed
+        ? Optional.of(Pair.of(shotAngle.lastValue(), shotVelocity.lastValue()))
+        : Optional.empty();
   }
 
   /** Sets robot pose to a known pose and restores trust. */
@@ -412,19 +364,6 @@ public class RobotState {
       final var robotSpeeds = driveState.Speeds;
       final var fieldSpeeds = ChassisSpeeds.fromRobotRelativeSpeeds(robotSpeeds, rotation);
       chassisSpeeds.enqueue(timestamp, fieldSpeeds);
-
-      // estimate acceleration
-      if (prevChassisSpeed != null) {
-        final var dt = driveState.Timestamp - prevChassisSpeedTimestamp;
-        final var prevSpeed =
-            Math.hypot(prevChassisSpeed.vxMetersPerSecond, prevChassisSpeed.vyMetersPerSecond);
-        final var currentSpeed =
-            Math.hypot(fieldSpeeds.vxMetersPerSecond, fieldSpeeds.vyMetersPerSecond);
-        accelerationEstimate.calculate((currentSpeed - prevSpeed) / dt);
-      }
-
-      prevChassisSpeed = fieldSpeeds;
-      prevChassisSpeedTimestamp = driveState.Timestamp;
 
       // reduce trust in odometry if slippage is detected
       final var maxSlipRatio =
@@ -483,13 +422,26 @@ public class RobotState {
 
     // determine effective turret angle and shot parameters
     final var pose = getRobotPose();
-    final var shotTarget =
-        Field.isInShootingZone(pose.getTranslation())
-            ? Field.fieldTranslation.apply(Field.kHubCenter)
-            : getPassingTarget();
+    final var poseXY = pose.getTranslation();
 
-    shotParameters = shotCalculator.calculate(pose, drivetrain.getFieldSpeeds(), shotTarget);
-    shotConfidence = computeShotConfidence(shotParameters);
+    if (Field.isInPassingZone(poseXY)) {
+      shotParameters =
+          passCalculator.calculate(pose, drivetrain.getFieldSpeeds(), getPassingTarget());
+      shotAllowed = true;
+    } else {
+      final var speeds = drivetrain.getFieldSpeeds();
+      shotParameters =
+          shotCalculator.calculate(pose, speeds, Field.fieldTranslation.apply(Field.kHubCenter));
+
+      // prepare the shot but do not shoot unless actually within the shooting zone
+      shotAllowed =
+          Field.isInShootingZone(poseXY)
+              && shotParameters.quality() >= 0.5
+              && shotParameters.distance().gte(kMinScoreDistance)
+              && shotParameters.distance().lte(kMaxScoreDistance)
+              && robotSpeed <= kMaxScoreSpeed;
+    }
+
     shotVelocity.calculate(shotParameters.shooterVelocity());
     shotAngle.calculate(shotParameters.shooterAngle());
     turretAngle.calculate(getTurretAngleTo(shotParameters.target()));
@@ -530,6 +482,7 @@ public class RobotState {
     telemetry.currentStates = state.ModuleStates;
     telemetry.desiredStates = state.ModuleTargets;
     odometryFrequency = 1.0 / state.OdometryPeriod;
+    robotSpeed = Math.hypot(state.Speeds.vxMetersPerSecond, state.Speeds.vyMetersPerSecond);
 
     computeSlipRatios(state, moduleSlipRatiosArray);
 
@@ -595,6 +548,7 @@ public class RobotState {
   }
 
   /** Returns appropriate passing target based on the selection and robot pose. */
+  @Logged(name = "PassingTarget", importance = Importance.CRITICAL)
   public Translation2d getPassingTarget() {
     return getPassingTarget(passingPoint);
   }
@@ -615,35 +569,33 @@ public class RobotState {
     switch (targetPoint) {
       case kTrenchLower:
         return new Translation2d(
-            Field.fieldX.apply(Field.kStartingLineX), Field.fieldY.apply(Field.kTrenchWidth / 2));
+            Field.fieldX.apply(Field.kStartingLineX),
+            Field.fieldY.apply(Field.kTrenchWidth * 0.75));
 
       case kTrenchUpper:
         return new Translation2d(
             Field.fieldX.apply(Field.kStartingLineX),
-            Field.fieldY.apply(Field.kFieldWidth - Field.kTrenchWidth / 2));
+            Field.fieldY.apply(Field.kFieldWidth - Field.kTrenchWidth * 0.75));
 
       case kTrenchAuto:
         return new Translation2d(
-            Field.fieldX.apply(Field.kStartingLineX), originY + signY * Field.kTrenchWidth / 2);
+            Field.fieldX.apply(Field.kStartingLineX), originY + signY * Field.kTrenchWidth * 0.75);
 
       default:
         return new Translation2d(
             Field.fieldX.apply(Field.kDefaultPassingPoint.getX()),
-            originY + signY * Field.kDefaultPassingPoint.getY());
+            originY + signY * 2 * Field.kDefaultPassingPoint.getY());
     }
   }
 
+  private static final double kTrenchZonePredictiveTime = 0.25; // seconds
+
   /** Determines whether shooter position is within trench zone. */
   public boolean isShooterWithinTrench() {
-    return Field.isInTrenchZone(getShooterFieldPose(getRobotPose())).isPresent();
-  }
-
-  private static final Time kTrenchZonePredictiveTime = Seconds.of(0.5);
-
-  /** Determines whether robot is within or entering trench zone. */
-  public Optional<Translation2d> isRobotNearTrench() {
     return Field.isInTrenchZone(
-        getRobotPose(), drivetrain.getFieldSpeeds(), kTrenchZonePredictiveTime);
+        getShooterFieldPose(getRobotPose()),
+        drivetrain.getFieldSpeeds(),
+        kTrenchZonePredictiveTime);
   }
 
   @Logged(name = "Tuning/ActualShotDistance", importance = Importance.DEBUG)
@@ -654,7 +606,7 @@ public class RobotState {
 
   @Logged(name = "Tuning/ActualPassDistance", importance = Importance.DEBUG)
   public Distance getActualPasstDistance() {
-    final var target = getPassingTarget(PassingPoint.kTrenchUpper);
+    final var target = getPassingTarget(passingPoint);
     return Meters.of(getShooterFieldPose(getRobotPose()).minus(target).getNorm());
   }
 

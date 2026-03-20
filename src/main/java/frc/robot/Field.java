@@ -1,7 +1,5 @@
 package frc.robot;
 
-import static edu.wpi.first.units.Units.Seconds;
-
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation2d;
@@ -10,10 +8,8 @@ import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.geometry.Translation3d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.util.Units;
-import edu.wpi.first.units.measure.Time;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
-import java.util.Optional;
 import java.util.function.Function;
 
 /** Field-related functionality. Blue alliance origin. */
@@ -167,41 +163,41 @@ public final class Field {
   public static Function<Double, Double> fieldX = (Double v) -> shouldFlip() ? flipX(v) : v;
   public static Function<Double, Double> fieldY = (Double v) -> shouldFlip() ? flipY(v) : v;
 
+  private static double kTrenchZoneThreshold = Units.inchesToMeters(12);
+
   /**
    * Determines whether the specified pose falls within the either trench zone on both alliance
-   * sides and returns center of the trench position if true.
+   * sides close to the center line +- threshold.
    */
-  public static Optional<Translation2d> isInTrenchZone(Translation2d xy) {
+  public static boolean isInTrenchZone(Translation2d xy) {
     final var x = xy.getX();
     final var y = xy.getY();
 
     if (y < kTrenchWidth || y > kFieldWidth - kTrenchWidth) {
       // blue alliance side
-      if (x > kStartingLineX && x < kNeutralZoneNear) {
-        return y < kTrenchWidth
-            ? Optional.of(kBlueTrenchLowerCenter)
-            : Optional.of(kBlueTrenchUpperCenter);
+      if (Math.abs(kHubLineX - x) < kTrenchZoneThreshold) {
+        return true;
       }
 
       // red alliance side
-      if (x > kNeutralZoneFar && x < kFieldLength - kStartingLineX) {
-        return y < kTrenchWidth
-            ? Optional.of(kRedTrenchUpperCenter)
-            : Optional.of(kRedTrenchLowerCenter);
+      if (Math.abs(kFieldLength - kHubLineX - x) < kTrenchZoneThreshold) {
+        return true;
       }
     }
 
-    return Optional.empty();
+    return false;
   }
 
   /**
    * Extends {@link #isInTrenchZone(Translation2d)} with predictive behavior based on current
    * velocity and time horizon.
    */
-  public static Optional<Translation2d> isInTrenchZone(
-      Pose2d pose, ChassisSpeeds fieldSpeeds, Time dt) {
-    return isInTrenchZone(pose.getTranslation())
-        .or(() -> isInTrenchZone(pose.exp(fieldSpeeds.toTwist2d(dt.in(Seconds))).getTranslation()));
+  public static boolean isInTrenchZone(Translation2d xy, ChassisSpeeds fieldSpeeds, double dt) {
+    return isInTrenchZone(xy)
+        || isInTrenchZone(
+            new Translation2d(
+                xy.getX() + fieldSpeeds.vxMetersPerSecond * dt,
+                xy.getY() + fieldSpeeds.vyMetersPerSecond * dt));
   }
 
   /**
@@ -211,5 +207,14 @@ public final class Field {
   public static boolean isInShootingZone(Translation2d xy) {
     final var x = xy.getX();
     return shouldFlip() ? x > kFieldLength - kShootingZoneX : x < kShootingZoneX;
+  }
+
+  /**
+   * Determines whether the specified robot pose's translation falls within the passing zone,
+   * neutral zone onwards.
+   */
+  public static boolean isInPassingZone(Translation2d xy) {
+    final var x = xy.getX();
+    return shouldFlip() ? x <= kFieldLength - kNeutralZoneNear : x >= kNeutralZoneNear;
   }
 }

@@ -46,7 +46,7 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain
   private Notifier simNotifier = null;
   private double lastSimTime;
 
-  // kSpeedAt12Volts desired top speed
+  // based on the desired top speed
   private static final double maxSpeedMetersPerSecond = DriveConstants.maxSpeed.in(MetersPerSecond);
   private static final double maxAngularRateRadiansPerSecond =
       DriveConstants.maxAngularRate.in(RadiansPerSecond);

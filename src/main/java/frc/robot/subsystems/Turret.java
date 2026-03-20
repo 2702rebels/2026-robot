@@ -3,15 +3,16 @@ package frc.robot.subsystems;
 import static edu.wpi.first.units.Units.*;
 
 import com.ctre.phoenix6.CANBus;
+import com.ctre.phoenix6.controls.MotionMagicExpoTorqueCurrentFOC;
 import com.ctre.phoenix6.controls.PositionTorqueCurrentFOC;
 import com.ctre.phoenix6.signals.NeutralModeValue;
-import com.ctre.phoenix6.signals.StaticFeedforwardSignValue;
 import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.filter.MedianFilter;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.util.CircularBuffer;
+import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
@@ -29,13 +30,16 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
   // MAKE SURE TO UPDATE THESE VALUES AFTER TUNING
   // DO NOT USE THESE VALUES DIRECTLY IN PERIODIC CODE,
   // USE THEM TO INITIALIZE TUNABLE VALUES AND CONTROLLERS
-  private static final double __kS = 0; // 1.5;
-  private static final double __kA = 0; // 0.07;
-  private static final double __kV = 0; // 0.05;
-  private static final double __kP = 40; // 50;
-  private static final double __kD = 4; // 3.3;
-  private static final double __kMaxVelocity = 1.0; // rps
-  private static final double __kMaxAcceleration = __kMaxVelocity / 0.02; // 200ms to max velocity
+  private static final double __kP0 = 50;
+  private static final double __kD0 = 2;
+
+  private static final double __kS = 1.5;
+  private static final double __kA = 0.07;
+  private static final double __kV = 0.05;
+  private static final double __kP = 50;
+  private static final double __kD = 3.3;
+  private static final double __kMaxVelocity = 0; // rps
+  private static final double __kMaxAcceleration = 0; // rps/s
   private static final double __kJerk = 0;
 
   private static final double __kSetpointManual = 0;
@@ -64,8 +68,9 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
   private final MedianFilter encoder1Filter = new MedianFilter(5);
   private final MedianFilter encoder2Filter = new MedianFilter(5);
 
-  // private final MotionMagicExpoTorqueCurrentFOC control;
-  private final PositionTorqueCurrentFOC control;
+  private final MotionMagicExpoTorqueCurrentFOC controlProfiled;
+  private final PositionTorqueCurrentFOC controlSimple;
+  private long controlProfiledTimestamp = -1;
 
   private final CANduit.PWMInput encoder1;
   private final CANduit.PWMInput encoder2;
@@ -81,8 +86,8 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
   private static final double kEncoder1Ratio = kTurretTeeth / 17.0;
   private static final double kEncoder2Ratio = kTurretTeeth / 19.0;
 
-  private static final Angle kEncoder1Offset = Degrees.of(-15.1);
-  private static final Angle kEncoder2Offset = Degrees.of(-185.8);
+  private static final Angle kEncoder1Offset = Degrees.of(-33.73);
+  private static final Angle kEncoder2Offset = Degrees.of(-187.10);
   private static final Angle kMinRange = Degrees.of(-260.0);
   private static final Angle kMaxRange = Degrees.of(260.0);
 
@@ -92,7 +97,8 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
   private static final double kMaxPosition = 200.0; // degrees
   private static final double kMinOverlap = -360 - kMinPosition;
   private static final double kMaxOverlap = 360 - kMaxPosition;
-  private static final double kTolerance = 3.0; // degrees
+  private static final double kTolerance = 5.0; // degrees
+  private static final double kLongRangeArc = 30.0;
 
   // Expo kV and kA characterize the profile not gains
   // https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/motion-magic.html#motion-magic-expo
@@ -136,12 +142,14 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
               config.SoftwareLimitSwitch.ReverseSoftLimitThreshold =
                   toMotorPosition(Degrees.of(kMinPosition));
 
-              config.Slot0.kS = __kS;
-              config.Slot0.kA = __kA;
-              config.Slot0.kV = __kV;
-              config.Slot0.kP = __kP;
-              config.Slot0.kD = __kD;
-              config.Slot0.StaticFeedforwardSign = StaticFeedforwardSignValue.UseClosedLoopSign;
+              config.Slot0.kP = __kP0;
+              config.Slot0.kD = __kD0;
+
+              config.Slot1.kS = __kS;
+              config.Slot1.kA = __kA;
+              config.Slot1.kV = __kV;
+              config.Slot1.kP = __kP;
+              config.Slot1.kD = __kD;
 
               config.MotionMagic.MotionMagicCruiseVelocity = __kMaxVelocity;
               config.MotionMagic.MotionMagicAcceleration = __kMaxAcceleration;
@@ -150,12 +158,18 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
               config.MotionMagic.MotionMagicExpo_kA = __kAExpo;
             });
 
-    control =
-        // new MotionMagicExpoTorqueCurrentFOC(0)
+    controlSimple =
         new PositionTorqueCurrentFOC(0).withSlot(0).withUseTimesync(true).withUpdateFreqHz(0);
+
+    controlProfiled =
+        new MotionMagicExpoTorqueCurrentFOC(0)
+            .withSlot(1)
+            .withUseTimesync(true)
+            .withUpdateFreqHz(0);
 
     // make configuration tunable (must be done after configuration is bound to the motor)
     Tunable.bind("Turret", motor);
+    Tunable.bind1("Turret/Profiled", motor);
     Tunable.bindMotionProfile("Turret/Motion", motor);
 
     encoder1 = canduit.createPWMInput(Constants.CANduitID.TURRET_ENCODER1);
@@ -323,7 +337,28 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
         setAngle(trackingAngleSupplier.get());
       }
 
-      motor.setControl(control.withPosition(toMotorPosition(setpoint)));
+      final var timestamp = RobotController.getTime();
+
+      // use profiled control for long range motion;
+      // simple PID for short bursts and keeping the turret in place
+      var useProfiledMotion = Math.abs(getPosition().minus(setpoint).in(Degrees)) > kLongRangeArc;
+
+      // retain profiled motion for 100ms to allow it to
+      // complete before switching to simple PID controls
+      if (useProfiledMotion) {
+        controlProfiledTimestamp = timestamp;
+      } else {
+        if (controlProfiledTimestamp > 0 && timestamp - controlProfiledTimestamp < 100000) {
+          useProfiledMotion = true;
+        } else {
+          controlProfiledTimestamp = -1;
+        }
+      }
+
+      motor.setControl(
+          useProfiledMotion
+              ? controlProfiled.withPosition(toMotorPosition(setpoint))
+              : controlSimple.withPosition(toMotorPosition(setpoint)));
     }
   }
 

@@ -37,9 +37,9 @@ public final class Shooter extends SubsystemBase implements EnergyReporter {
   private static final double __kFlywheelP = 10;
   private static final double __kFlywheelD = 0;
   private static final double __kHoodG = 0;
-  private static final double __kHoodS = 0.5;
-  private static final double __kHoodP = 3;
-  private static final double __kHoodD = 0.2;
+  private static final double __kHoodS = 0;
+  private static final double __kHoodP = 15;
+  private static final double __kHoodD = 0.5;
 
   private static final double __kHoodParkAngle = 10;
   private static final double __kHoodDefaultAngle = 20;

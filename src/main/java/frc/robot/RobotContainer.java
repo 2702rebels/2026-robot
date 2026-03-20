@@ -193,10 +193,10 @@ public class RobotContainer {
         .onTrue(Commands.runOnce(() -> state.setPassingTarget(PassingPoint.kTrenchAuto)));
     buttonator
         .button(3)
-        .onTrue(Commands.runOnce(() -> state.setPassingTarget(PassingPoint.kTrenchLower)));
+        .onTrue(Commands.runOnce(() -> state.setPassingTarget(PassingPoint.kTrenchUpper)));
     buttonator
         .button(4)
-        .onTrue(Commands.runOnce(() -> state.setPassingTarget(PassingPoint.kTrenchUpper)));
+        .onTrue(Commands.runOnce(() -> state.setPassingTarget(PassingPoint.kTrenchLower)));
 
     // controllerDriver
     //     .povLeft()
@@ -217,32 +217,6 @@ public class RobotContainer {
     RobotModeTriggers.teleop().onTrue(Commands.runOnce(gamePhaseTracker::startPeriod));
     RobotModeTriggers.disabled()
         .onTrue(Commands.runOnce(gamePhaseTracker::startPeriod).ignoringDisable(true));
-
-    // driver assist for through-trench driving
-    // new Trigger(() -> state.isRobotNearTrench().isPresent())
-    //     .debounce(0.1)
-    //     .onTrue(
-    //         Commands.runOnce(
-    //             () -> {
-    //               final var trench = state.isRobotNearTrench();
-    //               if (trench.isPresent()) {
-    //                 final var heading = drivetrain.getPose().getRotation().getDegrees();
-    //                 // snap heading to 0 or 180 degrees
-    //                 final var orientationLockTo =
-    //                     Math.abs(MathUtil.inputModulus(heading, -180, 180)) < 90
-    //                         ? Rotation2d.kZero
-    //                         : Rotation2d.k180deg;
-
-    //                 drivetrain.setOrientationLock(orientationLockTo);
-    //                 drivetrain.setCrossTrackYAssist(trench.get().getY());
-    //               }
-    //             }))
-    //     .onFalse(
-    //         Commands.runOnce(
-    //             () -> {
-    //               drivetrain.clearOrientationLock();
-    //               drivetrain.clearCrossTrackYAssist();
-    //             }));
 
     // alert for missing auto win alliance
     RobotModeTriggers.teleop()
