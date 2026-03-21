@@ -21,7 +21,7 @@ import frc.robot.subsystems.CommandSwerveDrivetrain;
  */
 public class WheelDiameterCharacterization extends Command {
   private static final Tunable.DoubleValue omega =
-      Tunable.value("WheelDiameterCharacterization/Omega", 0.3);
+      Tunable.value("WheelDiameterCharacterization/Omega", 1.0);
 
   private static final double turnRadius = TunerConstants.turnRadius.in(Meters);
   private static final double wheelRadius = TunerConstants.wheelRadius.in(Meters);

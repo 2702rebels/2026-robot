@@ -58,19 +58,21 @@ public class RobotContainer {
   private final AprilTagDetector aprilTagDetector = new AprilTagDetector();
 
   @Logged(name = "Intake", importance = Importance.CRITICAL)
-  private final Intake intake = new Intake(TunerConstants.kCANBus);
+  public final Intake intake = new Intake(TunerConstants.kCANBus);
 
   @Logged(name = "Hopper", importance = Importance.CRITICAL)
-  private final Hopper hopper = new Hopper(TunerConstants.kCANBus);
+  public final Hopper hopper = new Hopper(TunerConstants.kCANBus);
 
   @Logged(name = "Turret", importance = Importance.CRITICAL)
-  private final Turret turret;
+  public final Turret turret;
 
   @Logged(name = "Shooter", importance = Importance.CRITICAL)
-  private final Shooter shooter = new Shooter(TunerConstants.kCANBus);
+  public final Shooter shooter = new Shooter(TunerConstants.kCANBus);
 
   @Logged(name = "Climb", importance = Importance.CRITICAL)
-  private final Climb climb;
+  public final Climb climb;
+
+  private final AutoRoutines auto;
 
   private static final Trigger robotEnabled = new Trigger(DriverStation::isEnabled);
 
@@ -105,6 +107,7 @@ public class RobotContainer {
     this.canduit = canduit;
     turret = new Turret(TunerConstants.kCANBus, canduit);
     climb = new Climb(TunerConstants.kCANBus, canduit);
+    auto = new AutoRoutines(this, drivetrain);
 
     state.bind(drivetrain);
     state.setVisionStateSupplier(aprilTagDetector::getState);
@@ -197,6 +200,9 @@ public class RobotContainer {
     buttonator
         .button(4)
         .onTrue(Commands.runOnce(() -> state.setPassingTarget(PassingPoint.kTrenchLower)));
+
+    buttonator.button(8).onTrue(auto.test());
+    buttonator.button(9).onTrue(auto.climb());
 
     // controllerDriver
     //     .povLeft()

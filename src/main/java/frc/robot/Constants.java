@@ -125,14 +125,14 @@ public final class Constants {
         maxAngularRate.div(maxAccelerationTime);
 
     /** Translation tolerance */
-    public static final double kTranslationTolerance = Units.inchesToMeters(1);
+    public static final double kTranslationTolerance = 0.05;
 
     /** Rotation tolerance */
-    public static final double kRotationTolerance = Units.degreesToRadians(2);
+    public static final double kRotationTolerance = Units.degreesToRadians(3);
 
     /** PID configuration for cross-track controllers */
     public static final class CrossTrack {
-      public static final double kP = 2;
+      public static final double kP = 1;
       public static final double kI = 0;
       public static final double kD = 0;
     }
@@ -146,7 +146,7 @@ public final class Constants {
 
     /** PID configuration for rotation controllers */
     public static final class Rotation {
-      public static final double kP = 1;
+      public static final double kP = 2;
       public static final double kI = 0;
       public static final double kD = 0;
     }

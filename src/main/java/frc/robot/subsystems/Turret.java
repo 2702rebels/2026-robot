@@ -92,8 +92,8 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
   //    make sure the cord is in a neutral position and not wrapped around
   // 2. read the encoder values in the AdvantageScope and set these offsets
   //    to the corresponding sign-inverted values
-  private static final Angle kEncoder1Offset = Degrees.of(-33.73);
-  private static final Angle kEncoder2Offset = Degrees.of(-187.10);
+  private static final Angle kEncoder1Offset = Degrees.of(-45.68);
+  private static final Angle kEncoder2Offset = Degrees.of(-175.77);
 
   // min/max safe CRT range: these are dependent on the gear geometry
   // and do NOT represent the safe range of motion

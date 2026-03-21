@@ -162,6 +162,8 @@ public final class Shooter extends SubsystemBase implements EnergyReporter {
     // make configuration tunable (must be done after configuration is bound to the motor)
     Tunable.bind("Flywheel", flywheelMotorLeader);
     Tunable.bind("Hood", hoodMotor);
+
+    hoodMotor.resetPosition(0);
   }
 
   @Override
