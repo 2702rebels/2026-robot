@@ -203,9 +203,6 @@ public class RobotContainer {
     //     .whileTrue(
     //         new DriveToPose(
     //             drivetrain, () -> Optional.of(state.getTuningShotPose()), state::getRobotPose));
-
-    // controllerDriver.y().onTrue();
-    // controllerDriver.b().onTrue(intake.enable().andThen(intake.deploy()));
   }
 
   /** Use this method to configure trigger bindings. */

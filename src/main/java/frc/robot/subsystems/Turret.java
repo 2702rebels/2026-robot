@@ -86,19 +86,31 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
   private static final double kEncoder1Ratio = kTurretTeeth / 17.0;
   private static final double kEncoder2Ratio = kTurretTeeth / 19.0;
 
+  // THESE OFFSETS MUST BE UPDATED IF ENCODER GEARS ARE RESET
+  //
+  // 1. zero the turret with a zeroing block facing the rear of the robot,
+  //    make sure the cord is in a neutral position and not wrapped around
+  // 2. read the encoder values in the AdvantageScope and set these offsets
+  //    to the corresponding sign-inverted values
   private static final Angle kEncoder1Offset = Degrees.of(-33.73);
   private static final Angle kEncoder2Offset = Degrees.of(-187.10);
+
+  // min/max safe CRT range: these are dependent on the gear geometry
+  // and do NOT represent the safe range of motion
   private static final Angle kMinRange = Degrees.of(-260.0);
   private static final Angle kMaxRange = Degrees.of(260.0);
 
   private static final double kStatorCurrentLimit = 60.0;
   private static final double kConversionFactor = kTurretTeeth * 3.0 / 22.0;
-  private static final double kMinPosition = -200.0; // degrees
+  private static final double kMinPosition = -190; // degrees
   private static final double kMaxPosition = 200.0; // degrees
   private static final double kMinOverlap = -360 - kMinPosition;
   private static final double kMaxOverlap = 360 - kMaxPosition;
   private static final double kTolerance = 5.0; // degrees
   private static final double kLongRangeArc = 30.0;
+
+  // time to retain the profiled PID motion before switching to simple PID
+  private static final long kControlProfiledRetentionTime = 100000; // microseconds
 
   // Expo kV and kA characterize the profile not gains
   // https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/motion-magic.html#motion-magic-expo
@@ -182,7 +194,7 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
                 .withMechanismRange(kMinRange, kMaxRange)
                 .withMatchTolerance(Degrees.of(kTolerance)));
 
-    // adjust initialization direction based on presumed position
+    // adjust initialization direction based on the presumed position
     initDutyCycle *= (getPosition().in(Degrees) >= 0 ? -1 : 1);
   }
 
@@ -289,12 +301,12 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
     }
   }
 
-  @Logged(name = "Encoder1/Angle", importance = Importance.DEBUG)
+  @Logged(name = "Encoder1/Angle", importance = Importance.CRITICAL)
   public Angle getEncoder1Angle() {
     return Rotations.of(encoder1Filter.calculate(getEncoderRotations(encoder1)));
   }
 
-  @Logged(name = "Encoder2/Angle", importance = Importance.DEBUG)
+  @Logged(name = "Encoder2/Angle", importance = Importance.CRITICAL)
   public Angle getEncoder2Angle() {
     return Rotations.of(encoder2Filter.calculate(getEncoderRotations(encoder2)));
   }
@@ -343,12 +355,13 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
       // simple PID for short bursts and keeping the turret in place
       var useProfiledMotion = Math.abs(getPosition().minus(setpoint).in(Degrees)) > kLongRangeArc;
 
-      // retain profiled motion for 100ms to allow it to
-      // complete before switching to simple PID controls
+      // retain profiled motion for short amount of time to allow it to
+      // complete before switching to simple PID control
       if (useProfiledMotion) {
         controlProfiledTimestamp = timestamp;
       } else {
-        if (controlProfiledTimestamp > 0 && timestamp - controlProfiledTimestamp < 100000) {
+        if (controlProfiledTimestamp > 0
+            && timestamp - controlProfiledTimestamp < kControlProfiledRetentionTime) {
           useProfiledMotion = true;
         } else {
           controlProfiledTimestamp = -1;
@@ -364,15 +377,16 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
 
   public void setAngle(Angle value) {
     final var currentDegrees = getPosition().in(Degrees);
-    var valueDegrees = MathUtil.clamp(value.in(Degrees), kMinPosition, kMaxPosition);
+    var targetDegrees = MathUtil.clamp(value.in(Degrees), kMinPosition, kMaxPosition);
 
-    if (valueDegrees >= kMaxOverlap && currentDegrees < -90) {
-      valueDegrees -= 360.0;
-    } else if (valueDegrees <= kMinOverlap && currentDegrees > 90) {
-      valueDegrees += 360.0;
+    // unwrap target position to avoid a full turret sweep near +-180 degrees
+    if (targetDegrees >= kMaxOverlap && currentDegrees < -90) {
+      targetDegrees -= 360.0;
+    } else if (targetDegrees <= kMinOverlap && currentDegrees > 90) {
+      targetDegrees += 360.0;
     }
 
-    setpoint = Degrees.of(valueDegrees);
+    setpoint = Degrees.of(targetDegrees);
   }
 
   @Logged(name = "Initialized", importance = Importance.CRITICAL)

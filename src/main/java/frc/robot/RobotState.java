@@ -584,7 +584,7 @@ public class RobotState {
       default:
         return new Translation2d(
             Field.fieldX.apply(Field.kDefaultPassingPoint.getX()),
-            originY + signY * 2 * Field.kDefaultPassingPoint.getY());
+            originY + signY * Field.kDefaultPassingPoint.getY());
     }
   }
 

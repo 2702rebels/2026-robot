@@ -45,11 +45,22 @@ public final class Field {
   public static final double kShootingZoneX =
       kStartingLineX + kBumperSize / 2 - Units.inchesToMeters(4);
 
-  /** Trench width (approximate) in meters */
-  public static final double kTrenchWidth = Units.inchesToMeters(50);
-
   /** Center of the hub */
   public static final Translation2d kHubCenter = new Translation2d(kHubLineX, kFieldHalfWidth);
+
+  /** Center of the tower, face through the middle of the climb */
+  public static final Translation2d kTowerCenter =
+      new Translation2d(Units.inchesToMeters(40 + 3.51 * 0.5), Units.inchesToMeters(147.47));
+
+  /** Tower width including uprights */
+  public static final double kTowerWidth = Units.inchesToMeters(32.250 + 3.0);
+
+  /** Tower safe radius: 6" to clear protruding rungs */
+  public static final double kTowerSafeRadius =
+      (kTowerWidth + kBumperSize) * 0.5 + Units.inchesToMeters(6);
+
+  /** Trench width (approximate) in meters */
+  public static final double kTrenchWidth = Units.inchesToMeters(50);
 
   /** Center of the lower trench (Blue) */
   public static final Translation2d kBlueTrenchLowerCenter =
@@ -68,7 +79,7 @@ public final class Field {
       new Translation2d(kFieldLength - kHubLineX, kTrenchWidth / 2);
 
   /** Approximate passing point as measured from the corresponding corner of the field. */
-  public static final Translation2d kDefaultPassingPoint = new Translation2d(1, 1);
+  public static final Translation2d kDefaultPassingPoint = new Translation2d(1, 2);
 
   private Field() {
     throw new AssertionError();
@@ -216,5 +227,26 @@ public final class Field {
   public static boolean isInPassingZone(Translation2d xy) {
     final var x = xy.getX();
     return shouldFlip() ? x <= kFieldLength - kNeutralZoneNear : x >= kNeutralZoneNear;
+  }
+
+  /**
+   * Determines whether the specified robot pose is safely away from the tower to lower the climb.
+   */
+  public static boolean IsAwayFromTower(Pose2d pose) {
+    final var xy = pose.getTranslation();
+    final var tower = fieldTranslation.apply(kTowerCenter);
+
+    if (shouldFlip()) {
+      if (xy.getX() + kBumperSize * 0.5 < kFieldLength - tower.getX()) {
+        return true;
+      }
+    } else {
+      if (xy.getX() - kBumperSize * 0.5 > tower.getX()) {
+        return true;
+      }
+    }
+
+    final var dy = Math.abs(fieldY.apply(tower.getY()) - pose.getY());
+    return dy > kTowerSafeRadius;
   }
 }
