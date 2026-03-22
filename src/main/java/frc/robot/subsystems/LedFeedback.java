@@ -67,9 +67,10 @@ public class LedFeedback extends SubsystemBase {
             // select pattern based on the alliance color
             final var alliance = DriverStation.getAlliance();
             if (alliance.isPresent()) {
-              pattern = alliance.get() == DriverStation.Alliance.Red
-                ? disabledPatternRed
-                : disabledPatternBlue;
+              pattern =
+                  alliance.get() == DriverStation.Alliance.Red
+                      ? disabledPatternRed
+                      : disabledPatternBlue;
             } else {
               pattern = disabledPatternNone;
             }
