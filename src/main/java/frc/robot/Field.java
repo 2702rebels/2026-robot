@@ -232,7 +232,7 @@ public final class Field {
   /**
    * Determines whether the specified robot pose is safely away from the tower to lower the climb.
    */
-  public static boolean IsAwayFromTower(Pose2d pose) {
+  public static boolean isAwayFromTower(Pose2d pose) {
     final var xy = pose.getTranslation();
     final var tower = fieldTranslation.apply(kTowerCenter);
 

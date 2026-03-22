@@ -14,6 +14,7 @@ import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 import frc.robot.lib.EnergyReporter;
@@ -255,6 +256,12 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
   @Override
   public double getTotalSupplyCurrent() {
     return Math.abs(armMotor.getSupplyCurrentAmps()) + Math.abs(rollerMotor.getSupplyCurrentAmps());
+  }
+
+  /** Runs self-check. */
+  public Command selfCheck() {
+    return Commands.sequence(
+        Commands.print("Intake self-check started"), Commands.print("Intake self-check completed"));
   }
 
   // spotless:off

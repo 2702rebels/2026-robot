@@ -11,7 +11,6 @@ import com.ctre.phoenix6.swerve.SwerveRequest;
 import com.ctre.phoenix6.swerve.SwerveRequest.ForwardPerspectiveValue;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.Matrix;
-import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.filter.SlewRateLimiter;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
@@ -24,6 +23,7 @@ import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj.Notifier;
 import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.Subsystem;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import frc.robot.Constants;
@@ -32,7 +32,6 @@ import frc.robot.generated.TunerConstants.TunerSwerveDrivetrain;
 import frc.robot.lib.EnergyReporter;
 import frc.robot.lib.SwerveModuleTelemetry;
 import frc.robot.lib.SysIdSwerveTranslationTorqueCurrent;
-import frc.robot.lib.Tunable;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -110,10 +109,6 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain
       new SwerveRequest.PointWheelsAt()
           .withModuleDirection(Rotation2d.kZero)
           .withDriveRequestType(DriveRequestType.Velocity);
-
-  // swerve request to apply during field-centric path following
-  private final SwerveRequest.ApplyFieldSpeeds pathApplyFieldSpeeds =
-      new SwerveRequest.ApplyFieldSpeeds().withDriveRequestType(DriveRequestType.Velocity);
 
   // swerve request to apply during robot-centric path following
   private final SwerveRequest.ApplyRobotSpeeds pathApplyRobotSpeeds =
@@ -200,16 +195,6 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain
   // angle for orientation lock
   private Optional<Rotation2d> orientationLock = Optional.empty();
 
-  // Y coordinate for driving cross-track assist
-  private Optional<Double> crossTrackAssistY = Optional.empty();
-
-  private final PIDController crossTrackController =
-      new PIDController(
-          DriveConstants.CrossTrack.kP,
-          DriveConstants.CrossTrack.kI,
-          DriveConstants.CrossTrack.kD,
-          Constants.cyclePeriodSeconds);
-
   private SwerveModuleTelemetry moduleFL;
   private SwerveModuleTelemetry moduleFR;
   private SwerveModuleTelemetry moduleBL;
@@ -228,10 +213,6 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain
         new SwerveModuleTelemetry(getModule(2).getDriveMotor(), getModule(2).getSteerMotor());
     moduleBR =
         new SwerveModuleTelemetry(getModule(3).getDriveMotor(), getModule(3).getSteerMotor());
-
-    crossTrackController.setTolerance(Constants.DriveConstants.kTranslationTolerance);
-
-    Tunable.bind("Drive/CrossTrack", crossTrackController);
   }
 
   /**
@@ -397,35 +378,9 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain
           final var heading = Math.atan2(vx, vy);
           final var v = MathUtil.clamp(teleopVelocityLimiter.calculate(Math.hypot(vx, vy)), -1, 1);
 
-          var fieldVx = v * Math.sin(heading) * maxSpeedMetersPerSecond;
-          var fieldVy = v * Math.cos(heading) * maxSpeedMetersPerSecond;
-
-          if (crossTrackAssistY.isPresent()) {
-            // determine the Y velocity to stay on track
-            var trackVy = crossTrackController.calculate(getPose().getY(), crossTrackAssistY.get());
-            if (crossTrackController.atSetpoint()) {
-              trackVy = 0;
-            }
-
-            if (trackVy != 0) {
-              final var sign = Math.signum(fieldVy);
-              if (sign == 0.0) {
-                fieldVy = trackVy;
-              } else if (sign == Math.signum(trackVy)) {
-                // when human-commanded velocity is aligned with the track velocity
-                // then apply the minimum of two, effectively clamping driver's control
-                // at the calculated cross-track velocity
-                fieldVy = sign * Math.min(Math.abs(fieldVy), Math.abs(trackVy));
-              } else {
-                // otherwise, try to counteract the human-commanded velocity
-                fieldVy -= trackVy;
-              }
-            }
-          }
-
           driveAtFieldRelative(
-              fieldVx,
-              fieldVy,
+              v * Math.sin(heading) * maxSpeedMetersPerSecond,
+              v * Math.cos(heading) * maxSpeedMetersPerSecond,
               MathUtil.clamp(Math.signum(w) * teleopRotationLimiter.calculate(Math.abs(w)), -1, 1)
                   * maxAngularRateRadiansPerSecond);
         });
@@ -525,25 +480,6 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain
   }
 
   /**
-   * Sets the cross-track Y assist.
-   *
-   * @param value Y field coordinate to align the robot to
-   */
-  public void setCrossTrackYAssist(double value) {
-    crossTrackAssistY = Optional.of(value);
-  }
-
-  /** Removes the cross-track Y assist. */
-  public void clearCrossTrackYAssist() {
-    crossTrackAssistY = Optional.empty();
-  }
-
-  /** Determines whether cross-track Y assist is enabled. */
-  public boolean hasCrossTrackYAssist() {
-    return crossTrackAssistY.isPresent();
-  }
-
-  /**
    * Runs the SysId Quasistatic test in the given direction for the routine specified by {@link
    * #sysIdRoutineToApply}.
    *
@@ -596,6 +532,19 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain
         + Math.abs(moduleBL.getSteerSupplyCurrentAmps())
         + Math.abs(moduleBR.getDriveSupplyCurrentAmps())
         + Math.abs(moduleBR.getSteerSupplyCurrentAmps());
+  }
+
+  /** Runs self-check. */
+  public Command selfCheck() {
+    return Commands.sequence(
+        Commands.print("Drivetrain self-check started"),
+        brake().withTimeout(Seconds.of(1)),
+        wheelsForward().withTimeout(Seconds.of(1)),
+        run(() -> driveAtFieldRelative(0, 0, maxAngularRateRadiansPerSecond * 0.5))
+            .withTimeout(Seconds.of(3)),
+        run(() -> driveAtFieldRelative(0, 0, -maxAngularRateRadiansPerSecond * 0.5))
+            .withTimeout(Seconds.of(3)),
+        Commands.print("Drivetrain self-check completed"));
   }
 
   private void startSimThread() {

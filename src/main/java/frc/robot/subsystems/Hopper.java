@@ -9,11 +9,13 @@ import com.ctre.phoenix6.signals.NeutralModeValue;
 import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 import frc.robot.lib.EnergyReporter;
 import frc.robot.lib.LoggedTalonFX;
 import frc.robot.lib.Tunable;
+import java.util.function.BooleanSupplier;
 
 public final class Hopper extends SubsystemBase implements EnergyReporter {
   // MAKE SURE TO UPDATE THESE VALUES AFTER TUNING
@@ -128,10 +130,23 @@ public final class Hopper extends SubsystemBase implements EnergyReporter {
     return runEnd(() -> enabled = true, () -> enabled = false).withName("EnableShooter");
   }
 
+  public Command enable(BooleanSupplier supplier) {
+    return runEnd(() -> enabled = supplier.getAsBoolean(), () -> enabled = false)
+        .withName("EnableShooterWithCondition");
+  }
+
   @Override
   public double getTotalSupplyCurrent() {
     return Math.abs(feedMotor.getSupplyCurrentAmps())
         + Math.abs(spindexerMotor.getSupplyCurrentAmps());
+  }
+
+  /** Runs self-check. */
+  public Command selfCheck() {
+    return Commands.sequence(
+        Commands.print("Hopper self-check started"),
+        enable().withTimeout(Seconds.of(5)),
+        Commands.print("Hopper self-check completed"));
   }
 
   // spotless:off

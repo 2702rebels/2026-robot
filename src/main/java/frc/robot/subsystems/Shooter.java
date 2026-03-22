@@ -4,6 +4,7 @@ import static edu.wpi.first.units.Units.Degrees;
 import static edu.wpi.first.units.Units.RPM;
 import static edu.wpi.first.units.Units.Rotations;
 import static edu.wpi.first.units.Units.RotationsPerSecond;
+import static edu.wpi.first.units.Units.Seconds;
 
 import com.ctre.phoenix6.CANBus;
 import com.ctre.phoenix6.controls.Follower;
@@ -19,6 +20,7 @@ import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.Pair;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 import frc.robot.lib.EnergyReporter;
@@ -274,13 +276,45 @@ public final class Shooter extends SubsystemBase implements EnergyReporter {
         + Math.abs(hoodMotor.getSupplyCurrentAmps());
   }
 
+  /** Runs self-check. */
+  public Command selfCheck() {
+    return Commands.sequence(
+        Commands.print("Shooter self-check started"),
+        Commands.waitUntil(this::isInitialized),
+        Commands.print("Shooter initialized"),
+        // hood sequence
+        runOnce(() -> kHoodManualOverride.set(true)),
+        Commands.print("Hood to 10"),
+        run(() -> kHoodManual.set(10)).withTimeout(Seconds.of(1)),
+        Commands.print("Hood to 20"),
+        run(() -> kHoodManual.set(20)).withTimeout(Seconds.of(1)),
+        Commands.print("Hood to 30"),
+        run(() -> kHoodManual.set(30)).withTimeout(Seconds.of(1)),
+        Commands.print("Hood parked"),
+        parkHood().withTimeout(Seconds.of(2)),
+        run(() -> kHoodManual.set(0)).withTimeout(Seconds.of(1)),
+        runOnce(() -> kHoodManualOverride.set(false)),
+        // flywheel sequence
+        runOnce(() -> kFlywheelManualOverride.set(true)),
+        runOnce(() -> enabled = true),
+        Commands.print("Flywheel to 3000"),
+        run(() -> kFlywheelManual.set(3000)).withTimeout(Seconds.of(2)),
+        Commands.print("Flywheel to 4000"),
+        run(() -> kFlywheelManual.set(4000)).withTimeout(Seconds.of(2)),
+        Commands.print("Flywheel to 5000"),
+        run(() -> kFlywheelManual.set(5000)).withTimeout(Seconds.of(2)),
+        runOnce(() -> kFlywheelManualOverride.set(false)),
+        runOnce(() -> enabled = false),
+        Commands.print("Shooter self-check completed"));
+  }
+
   // spotless:off
   private static Tunable.DoubleValue kHoodParkAngle = Tunable.value("Hood/ParkAngle", __kHoodParkAngle);
   private static Tunable.DoubleValue kHoodDefaultAngle = Tunable.value("Hood/DefaultAngle", __kHoodDefaultAngle);
-  private static Tunable.DoubleValue kHoodManual = Tunable.value("Hood/Manual", __kHoodManual);
-  private static Tunable.BooleanValue kHoodManualOverride = Tunable.value("Hood/ManualOverride", false);
+  private static Tunable.DoubleValue kHoodManual = Tunable.value("Hood/Manual", __kHoodManual, true);
+  private static Tunable.BooleanValue kHoodManualOverride = Tunable.value("Hood/ManualOverride", false, true);
 
-  private static Tunable.DoubleValue kFlywheelManual = Tunable.value("Flywheel/Manual", __kFlywheelManual);
-  private static Tunable.BooleanValue kFlywheelManualOverride = Tunable.value("Flywheel/ManualOverride", false);
+  private static Tunable.DoubleValue kFlywheelManual = Tunable.value("Flywheel/Manual", __kFlywheelManual, true);
+  private static Tunable.BooleanValue kFlywheelManualOverride = Tunable.value("Flywheel/ManualOverride", false, true);
   // spotless:on
 }

@@ -18,7 +18,6 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.ScheduleCommand;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
-import frc.robot.lib.CANduit;
 import frc.robot.lib.EnergyReporter;
 import frc.robot.lib.LoggedTalonFXS;
 import frc.robot.lib.Tunable;
@@ -55,8 +54,6 @@ public final class Climb extends SubsystemBase implements EnergyReporter {
   private final PositionVoltage control;
   private final MotionMagicVoltage controlLower;
 
-  private final CANduit.PWMInput sensor;
-
   // indicates that the subsystem has been initialized by zeroing the position of the climb
   private boolean initialized = false;
 
@@ -68,10 +65,13 @@ public final class Climb extends SubsystemBase implements EnergyReporter {
 
   private State state = State.kNeutral;
 
+  // supports auto-retract once the robot clears the tower zone, after engaging the climb
+  private boolean disengagedButNotRetracted = false;
+
   private static final double kStatorCurrentLimit = 100.0;
   private static final double kTolerance = 0.5; // inches
 
-  public Climb(CANBus canbus, CANduit canduit) {
+  public Climb(CANBus canbus) {
     motor =
         new LoggedTalonFXS(
             Constants.CanivoreID.MOTOR_CLIMB,
@@ -113,21 +113,6 @@ public final class Climb extends SubsystemBase implements EnergyReporter {
     Tunable.bind("Climb", motor);
     Tunable.bind1("Climb/Lower", motor);
     Tunable.bindMotionProfile("Climb/Lower", motor);
-
-    // NOTE: currently disabled
-    sensor = canduit.createPWMInput(Constants.CANduitID.CLIMB_SENSOR, true);
-  }
-
-  /**
-   * Converts raw PWM input into distance in meters for ToF sensor.
-   * https://www.pololu.com/product/4064
-   */
-  private static Distance getSensorDistance(CANduit.PWMInput encoder) {
-    // the sensor was found to be consistently off by 10mm
-    final double fudgeFactor = -0.1;
-    final double v = encoder.getPulseWidth();
-
-    return Meters.of((v - 1000000.0) * 0.03 / 4000.0 + fudgeFactor);
   }
 
   @Override
@@ -166,6 +151,7 @@ public final class Climb extends SubsystemBase implements EnergyReporter {
         if (MathUtil.isNear(setpoint.in(Inches), positionExtended, kTolerance)
             && getPosition().in(Inches) >= positionExtended - kTolerance) {
           state = State.kNeutral;
+          disengagedButNotRetracted = true;
         }
         break;
 
@@ -179,13 +165,6 @@ public final class Climb extends SubsystemBase implements EnergyReporter {
         // ignore
         break;
     }
-  }
-
-  private static final Distance kDistanceNotAvailable = Meters.of(-1);
-
-  @Logged(name = "SensorDistance", importance = Importance.CRITICAL)
-  public Distance getSensorDistance() {
-    return sensor.hasValue() ? getSensorDistance(sensor) : kDistanceNotAvailable;
   }
 
   /** Determines whether the subsystem is at its commanded setpoint. */
@@ -214,6 +193,11 @@ public final class Climb extends SubsystemBase implements EnergyReporter {
     return state == State.kEngaged;
   }
 
+  @Logged(name = "DisengagedButNotRetracted", importance = Importance.CRITICAL)
+  public boolean isDisengagedButNotRetracted() {
+    return disengagedButNotRetracted;
+  }
+
   /** Extends the hook. */
   public Command extend() {
     return runOnce(
@@ -228,6 +212,7 @@ public final class Climb extends SubsystemBase implements EnergyReporter {
     return runOnce(
             () -> {
               setpoint = Inches.of(kPositionRetracted.get());
+              disengagedButNotRetracted = false;
             })
         .withName("ClimbRetract");
   }
@@ -263,12 +248,26 @@ public final class Climb extends SubsystemBase implements EnergyReporter {
                     Commands.runOnce(
                         () -> {
                           state = State.kNeutral;
+                          if (getPosition().in(Inches) >= kPositionRetracted.get() + kTolerance) {
+                            disengagedButNotRetracted = true;
+                          }
                         }))));
   }
 
   @Override
   public double getTotalSupplyCurrent() {
     return Math.abs(motor.getSupplyCurrentAmps());
+  }
+
+  /** Runs self-check. */
+  public Command selfCheck() {
+    return Commands.sequence(
+        Commands.print("Climb self-check started"),
+        Commands.waitUntil(this::isInitialized),
+        Commands.print("Climb initialized"),
+        extend().withTimeout(Seconds.of(2)),
+        retract().withTimeout(Seconds.of(1)),
+        Commands.print("Climb self-check completed"));
   }
 
   // spotless:off

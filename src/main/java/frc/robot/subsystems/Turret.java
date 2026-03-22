@@ -9,12 +9,15 @@ import com.ctre.phoenix6.signals.NeutralModeValue;
 import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.math.filter.Debouncer.DebounceType;
 import edu.wpi.first.math.filter.MedianFilter;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.util.CircularBuffer;
 import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.robot.Constants;
 import frc.robot.lib.CANduit;
 import frc.robot.lib.EasyCRT;
@@ -426,8 +429,34 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
     return Math.abs(motor.getSupplyCurrentAmps());
   }
 
+  /** Runs self-check. */
+  public Command selfCheck() {
+    return Commands.sequence(
+        Commands.print("Turret self-check started"),
+        Commands.waitUntil(this::isInitialized),
+        Commands.print("Turret initialized"),
+        runOnce(() -> kSetpointManualOverride.set(true)),
+        Commands.print("Turret to 0"),
+        run(() -> kSetpointManual.set(0)).withTimeout(Seconds.of(1)),
+        Commands.print("Turret to 90"),
+        run(() -> kSetpointManual.set(90)).withTimeout(Seconds.of(1)),
+        Commands.print("Turret to 180"),
+        run(() -> kSetpointManual.set(180)).withTimeout(Seconds.of(1)),
+        Commands.print("Turret to -180"),
+        run(() -> kSetpointManual.set(-180)).withTimeout(Seconds.of(2)),
+        Commands.print("Turret to -90"),
+        run(() -> kSetpointManual.set(-90)).withTimeout(Seconds.of(1)),
+        run(() -> kSetpointManual.set(0)).withTimeout(Seconds.of(1)),
+        runOnce(() -> kSetpointManualOverride.set(false)),
+        Commands.print("Turret self-check completed"));
+  }
+
+  /** Indicates that turret is ready and the hopper can proceed feeding ammo. */
+  public final Trigger isReady =
+      new Trigger(this::isAtSetpoint).debounce(0.25, DebounceType.kFalling);
+
   // spotless:off
-  private static Tunable.DoubleValue kSetpointManual = Tunable.value("Turret/Manual", __kSetpointManual);
-  private static Tunable.BooleanValue kSetpointManualOverride = Tunable.value("Turret/ManualOverride", false);
+  private static Tunable.DoubleValue kSetpointManual = Tunable.value("Turret/Manual", __kSetpointManual, true);
+  private static Tunable.BooleanValue kSetpointManualOverride = Tunable.value("Turret/ManualOverride", false, true);
   // spotless:on
 }

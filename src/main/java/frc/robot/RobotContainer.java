@@ -9,7 +9,6 @@ import static edu.wpi.first.units.Units.*;
 import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.math.MathUtil;
-import edu.wpi.first.math.filter.Debouncer.DebounceType;
 import edu.wpi.first.units.measure.Time;
 import edu.wpi.first.wpilibj.Alert;
 import edu.wpi.first.wpilibj.Alert.AlertType;
@@ -21,8 +20,8 @@ import edu.wpi.first.wpilibj2.command.button.CommandGenericHID;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
-import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
 import frc.robot.RobotState.PassingPoint;
+import frc.robot.commands.WheelDiameterCharacterization;
 import frc.robot.generated.TunerConstants;
 import frc.robot.lib.CANduit;
 import frc.robot.lib.EnergyTracker;
@@ -40,12 +39,16 @@ import frc.robot.subsystems.Shooter;
 import frc.robot.subsystems.Turret;
 
 public class RobotContainer {
+  private static final int kControllerDriverPort = 0;
+  private static final int kButtonatorPort = 1;
+
   private final RobotState state = RobotState.getInstance();
-  private final CommandXboxController controllerDriver = new CommandXboxController(0);
+  private final CommandXboxController controllerDriver =
+      new CommandXboxController(kControllerDriverPort);
   private final CommandSwerveDrivetrain drivetrain = TunerConstants.createDrivetrain();
   private final GamePhaseTracker gamePhaseTracker = new GamePhaseTracker();
 
-  private final CommandGenericHID buttonator = new CommandGenericHID(1);
+  private final CommandGenericHID buttonator = new CommandGenericHID(kButtonatorPort);
 
   private final LedResource led = new LedResource(Constants.PwmID.LED);
   private final LedFeedback ledFeedback = new LedFeedback(led, this::getDefaultLedFeedback);
@@ -70,7 +73,7 @@ public class RobotContainer {
   public final Shooter shooter = new Shooter(TunerConstants.kCANBus);
 
   @Logged(name = "Climb", importance = Importance.CRITICAL)
-  public final Climb climb;
+  public final Climb climb = new Climb(TunerConstants.kCANBus);
 
   private final AutoRoutines auto;
 
@@ -90,6 +93,9 @@ public class RobotContainer {
   private final Trigger climbUpButton = controllerDriver.povUp();
   private final Trigger climbDownButton = controllerDriver.povDown();
 
+  // condition on when the robot is allowed to initiate shooting sequence
+  public final Trigger canShoot;
+
   // alerts
   private static final Time kMissingAutoWinAllianceAlertThreshold = Seconds.of(1);
   private final Alert alertMissingAutoWinAlliance =
@@ -101,12 +107,16 @@ public class RobotContainer {
           AlertType.kWarning);
 
   private final Alert alertControllerDriverDisconnected =
-      new Alert("Driver controller disconnected (port 0).", AlertType.kWarning);
+      new Alert(
+          "Driver controller disconnected (port " + kControllerDriverPort + ").",
+          AlertType.kWarning);
+
+  private final Alert alertButtonatorDisconnected =
+      new Alert("Buttonator disconnected (port " + kButtonatorPort + ").", AlertType.kWarning);
 
   public RobotContainer(CANduit canduit) {
     this.canduit = canduit;
     turret = new Turret(TunerConstants.kCANBus, canduit);
-    climb = new Climb(TunerConstants.kCANBus, canduit);
     auto = new AutoRoutines(this, drivetrain);
 
     state.bind(drivetrain);
@@ -131,6 +141,9 @@ public class RobotContainer {
     energyTracker.register("Turret", turret);
     energyTracker.register("Shooter", shooter);
     energyTracker.register("Climb", climb);
+
+    // shooting sequence condition
+    canShoot = new Trigger(turret.isReady).and(state::isLevel);
   }
 
   /** Smooth out control input by squaring. */
@@ -161,20 +174,17 @@ public class RobotContainer {
     // run SysId routines when holding back/start and X/Y
     // note that each routine should be run exactly once in a single log
     if (Constants.Settings.sysIdBindings) {
-      controllerDriver.povRight().whileTrue(drivetrain.sysIdDynamic(Direction.kForward));
-      controllerDriver.povLeft().whileTrue(drivetrain.sysIdDynamic(Direction.kReverse));
-      controllerDriver.povUp().whileTrue(drivetrain.sysIdQuasistatic(Direction.kForward));
-      controllerDriver.povDown().whileTrue(drivetrain.sysIdQuasistatic(Direction.kReverse));
-      // controllerDriver.povLeft().whileTrue(new WheelDiameterCharacterization(drivetrain, 1));
-      // controllerDriver.povRight().whileTrue(new WheelDiameterCharacterization(drivetrain, -1));
+      // controllerDriver.povRight().whileTrue(drivetrain.sysIdDynamic(Direction.kForward));
+      // controllerDriver.povLeft().whileTrue(drivetrain.sysIdDynamic(Direction.kReverse));
+      // controllerDriver.povUp().whileTrue(drivetrain.sysIdQuasistatic(Direction.kForward));
+      // controllerDriver.povDown().whileTrue(drivetrain.sysIdQuasistatic(Direction.kReverse));
+      controllerDriver.povLeft().whileTrue(new WheelDiameterCharacterization(drivetrain, 1));
+      controllerDriver.povRight().whileTrue(new WheelDiameterCharacterization(drivetrain, -1));
     }
 
     drivetrain.registerTelemetry(state::updateSwerveTelemetry);
 
-    shootButton
-        .and(new Trigger(turret::isAtSetpoint).debounce(0.25, DebounceType.kFalling))
-        .whileTrue(hopper.enable());
-
+    shootButton.whileTrue(hopper.enable(canShoot));
     shootButton.whileTrue(shooter.enable());
 
     enableIntakeButton.onTrue(intake.enable());
@@ -201,8 +211,12 @@ public class RobotContainer {
         .button(4)
         .onTrue(Commands.runOnce(() -> state.setPassingTarget(PassingPoint.kTrenchLower)));
 
-    buttonator.button(8).onTrue(auto.test());
+    buttonator.button(7).onTrue(auto.test1());
+    buttonator.button(8).onTrue(auto.test2());
     buttonator.button(9).onTrue(auto.climb());
+    buttonator.button(10).onTrue(auto.test3());
+
+    buttonator.button(16).onTrue(selfCheck());
 
     // controllerDriver
     //     .povLeft()
@@ -220,6 +234,11 @@ public class RobotContainer {
     RobotModeTriggers.teleop().onTrue(Commands.runOnce(gamePhaseTracker::startPeriod));
     RobotModeTriggers.disabled()
         .onTrue(Commands.runOnce(gamePhaseTracker::startPeriod).ignoringDisable(true));
+
+    // auto-retract climb
+    new Trigger(climb::isDisengagedButNotRetracted)
+        .and(state::isAwayFromTower)
+        .onTrue(climb.retract());
 
     // alert for missing auto win alliance
     RobotModeTriggers.teleop()
@@ -267,6 +286,9 @@ public class RobotContainer {
     // alert for disconnected controllers
     alertControllerDriverDisconnected.set(
         !DriverStation.isJoystickConnected(controllerDriver.getHID().getPort()));
+
+    alertButtonatorDisconnected.set(
+        !DriverStation.isJoystickConnected(buttonator.getHID().getPort()));
   }
 
   public Command getAutonomousCommand() {
@@ -286,15 +308,23 @@ public class RobotContainer {
     return Commands.runOnce(drivetrain::clearOrientationLock);
   }
 
-  /** Runs validation checklist at the startup. Must be invoked from the robotInit(). */
-  public void initValidation() {}
-
   /** Creates a command to rumble the controllers. */
   private Command rumble(Time time) {
     return Commands.sequence(
         Commands.runOnce(() -> controllerDriver.getHID().setRumble(RumbleType.kBothRumble, 1.0)),
         Commands.waitTime(time),
         Commands.runOnce(() -> controllerDriver.getHID().setRumble(RumbleType.kBothRumble, 0.0)));
+  }
+
+  /** Creates a command to run self-check for all subsystems. */
+  private Command selfCheck() {
+    return Commands.sequence(
+        drivetrain.selfCheck(),
+        intake.selfCheck(),
+        hopper.selfCheck(),
+        turret.selfCheck(),
+        shooter.selfCheck(),
+        climb.selfCheck());
   }
 
   /** Gets modifier of the rotational velocity when precise rotation mode is active. */

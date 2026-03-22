@@ -64,6 +64,7 @@ public class RobotState {
   private static final double kOdometryTrustThreshold = 0.8;
   private static final double kOdometryTrustPenalty = 0.05;
   private static final double kLowBatteryVoltage = 11.0;
+  private static final double kLevelThreshold = 5.0; // degrees
 
   // shooting constants
   private static final Distance kMinScoreDistance = Meters.of(1.5);
@@ -184,6 +185,7 @@ public class RobotState {
     passCalculator.putLUTEntry(Meters.of(6.00), 4300, 25, 1.50);
     passCalculator.putLUTEntry(Meters.of(7.00), 4800, 30, 1.70);
     passCalculator.putLUTEntry(Meters.of(8.00), 5250, 30, 1.85);
+    passCalculator.putLUTEntry(Meters.of(10.0), 6000, 30, 2.0);
   }
 
   /** Odometry trust (0 - no trust, 1 - full trust) */
@@ -246,6 +248,13 @@ public class RobotState {
   @Logged(name = "Pitch", importance = Importance.CRITICAL)
   public Angle getPitch() {
     return drivetrain.getPitch();
+  }
+
+  /** Indicates that robot is level. */
+  @Logged(name = "IsLevel", importance = Importance.CRITICAL)
+  public boolean isLevel() {
+    return Math.abs(getRoll().in(Degrees)) < kLevelThreshold
+        && Math.abs(getPitch().in(Degrees)) < kLevelThreshold;
   }
 
   /** Orientation lock */
@@ -586,6 +595,11 @@ public class RobotState {
             Field.fieldX.apply(Field.kDefaultPassingPoint.getX()),
             originY + signY * Field.kDefaultPassingPoint.getY());
     }
+  }
+
+  /** Determines whether robot is away from the tower zone. */
+  public boolean isAwayFromTower() {
+    return Field.isAwayFromTower(getRobotPose());
   }
 
   private static final double kTrenchZonePredictiveTime = 0.25; // seconds

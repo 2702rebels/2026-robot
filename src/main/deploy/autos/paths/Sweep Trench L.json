@@ -3,8 +3,8 @@
     {
       "type": "waypoint",
       "translation_target": {
-        "x_meters": 4.404006191950463,
-        "y_meters": 7.413080495356038,
+        "x_meters": 4.4,
+        "y_meters": 7.4,
         "intermediate_handoff_radius_meters": 0.2
       },
       "rotation_target": {
@@ -13,16 +13,10 @@
       }
     },
     {
-      "type": "translation",
-      "x_meters": 6.011386996904022,
-      "y_meters": 7.391359133126935,
-      "intermediate_handoff_radius_meters": 0.2
-    },
-    {
       "type": "waypoint",
       "translation_target": {
-        "x_meters": 8.125531550731656,
-        "y_meters": 7.054678018575851,
+        "x_meters": 7.6,
+        "y_meters": 7.1,
         "intermediate_handoff_radius_meters": 0.2
       },
       "rotation_target": {
@@ -32,27 +26,21 @@
     },
     {
       "type": "translation",
-      "x_meters": 7.853115699338474,
-      "y_meters": 4.58123216443862,
+      "x_meters": 7.8,
+      "y_meters": 5.0,
       "intermediate_handoff_radius_meters": 0.2
     },
     {
       "type": "translation",
-      "x_meters": 7.109103472980346,
-      "y_meters": 4.558611978680106,
-      "intermediate_handoff_radius_meters": 0.2
-    },
-    {
-      "type": "translation",
-      "x_meters": 6.588689603011306,
-      "y_meters": 5.221113526667722,
+      "x_meters": 6.9,
+      "y_meters": 4.6,
       "intermediate_handoff_radius_meters": 0.2
     },
     {
       "type": "waypoint",
       "translation_target": {
-        "x_meters": 6.079136414156817,
-        "y_meters": 7.372427210878247,
+        "x_meters": 6.0,
+        "y_meters": 7.1,
         "intermediate_handoff_radius_meters": 0.2
       },
       "rotation_target": {
@@ -63,8 +51,8 @@
     {
       "type": "waypoint",
       "translation_target": {
-        "x_meters": 4.422039290669741,
-        "y_meters": 7.416768758865864,
+        "x_meters": 4.0,
+        "y_meters": 7.4,
         "intermediate_handoff_radius_meters": 0.2
       },
       "rotation_target": {
@@ -76,14 +64,19 @@
   "constraints": {
     "max_velocity_meters_per_sec": [
       {
-        "value": 2.0,
+        "value": 3.0,
         "start_ordinal": 0,
-        "end_ordinal": 6
+        "end_ordinal": 2
       },
       {
-        "value": 1.0,
-        "start_ordinal": 7,
-        "end_ordinal": 7
+        "value": 2.5,
+        "start_ordinal": 3,
+        "end_ordinal": 4
+      },
+      {
+        "value": 2.0,
+        "start_ordinal": 5,
+        "end_ordinal": 5
       }
     ]
   }

@@ -7,7 +7,9 @@ import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.networktables.StructPublisher;
+import edu.wpi.first.units.measure.Time;
 import edu.wpi.first.wpilibj2.command.Command;
+import frc.robot.Constants.Deployment;
 import frc.robot.Constants.DriveConstants;
 import frc.robot.lib.BLine.FollowPath;
 import frc.robot.lib.BLine.Path;
@@ -55,22 +57,32 @@ public class AutoRoutines {
     logger.accept(pose);
   }
 
+  private Command shoot(Time duration) {
+    return container
+        .shooter
+        .enable()
+        .alongWith(container.hopper.enable(container.canShoot))
+        .withTimeout(duration)
+        .asProxy();
+  }
+
   public AutoRoutines(RobotContainer container, CommandSwerveDrivetrain drivetrain) {
     this.container = container;
     this.drivetrain = drivetrain;
     this.state = RobotState.getInstance();
 
-    // logging
-    FollowPath.setPoseLoggingConsumer(pair -> logPose(pair.getFirst(), pair.getSecond()));
+    // enable logging [development only]
+    if (Constants.DeploymentMode == Deployment.kDevelopment) {
+      FollowPath.setPoseLoggingConsumer(pair -> logPose(pair.getFirst(), pair.getSecond()));
+    }
 
     // events
     FollowPath.registerEventTrigger("climb_extend", container.climb.extend().asProxy());
     FollowPath.registerEventTrigger("intake_start", container.intake.enable().asProxy());
     FollowPath.registerEventTrigger("intake_stop", container.intake.disable().asProxy());
-    FollowPath.registerEventTrigger(
-        "shoot_4", container.shooter.enable().withTimeout(Seconds.of(4)).asProxy());
-    FollowPath.registerEventTrigger(
-        "shoot_5", container.shooter.enable().withTimeout(Seconds.of(5)).asProxy());
+    FollowPath.registerEventTrigger("intake_deploy", container.intake.deploy().asProxy());
+    FollowPath.registerEventTrigger("shoot_4", shoot(Seconds.of(4)));
+    FollowPath.registerEventTrigger("shoot_5", shoot(Seconds.of(5)));
 
     Path.setDefaultGlobalConstraints(
         new Path.DefaultGlobalConstraints(
@@ -95,18 +107,27 @@ public class AutoRoutines {
             .withDefaultShouldFlip();
   }
 
-  private static final Path test1 = new Path("Test 1");
   private static final Path climb = new Path("Climb");
   private static final Path sweepTrenchL = new Path("Sweep Trench L");
+  private static final Path sweepTrenchLOverBump = new Path("Sweep Trench L over Bump");
+  private static final Path trenchLRArcStation = new Path("Trench LR Arc Station");
 
-  public Command test() {
-    return pathBuilder.build(sweepTrenchL);
+  public Command test1() {
+    return pathBuilder.build(sweepTrenchLOverBump);
+  }
+
+  public Command test2() {
+    return pathBuilder.build(sweepTrenchL).andThen(shoot(Seconds.of(3)));
+  }
+
+  public Command test3() {
+    return pathBuilder.build(trenchLRArcStation);
   }
 
   public Command climb() {
     return pathBuilder
         .build(climb)
-        .withTimeout(Seconds.of(4.5))
+        .withTimeout(Seconds.of(5))
         .andThen(container.climb.engage().asProxy());
   }
 }
