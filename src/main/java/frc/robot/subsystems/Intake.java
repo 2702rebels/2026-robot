@@ -3,16 +3,14 @@ package frc.robot.subsystems;
 import static edu.wpi.first.units.Units.*;
 
 import com.ctre.phoenix6.CANBus;
+import com.ctre.phoenix6.controls.ControlRequest;
 import com.ctre.phoenix6.controls.PositionTorqueCurrentFOC;
 import com.ctre.phoenix6.controls.VelocityTorqueCurrentFOC;
-import com.ctre.phoenix6.signals.GravityTypeValue;
-import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
 import com.ctre.phoenix6.signals.StaticFeedforwardSignValue;
 import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.math.MathUtil;
-import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
@@ -31,53 +29,66 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
   private static final double __kRollerP = 5;
   private static final double __kRollerD = 0;
 
-  private static final double __kArmMoveG = 20;
-  private static final double __kArmMoveS = 1.5;
-  private static final double __kArmMoveP = 310;
-  private static final double __kArmMoveD = 35;
+  // roller SPID values for VoltageVelocity control w/o FOC (in case we need it)
+  // S = 0.18, V = 0.11, P = 7, D = 0
 
-  private static final double __kArmHoldG = 0;
-  private static final double __kArmHoldS = 5;
-  private static final double __kArmHoldP = 1500;
-  private static final double __kArmHoldD = 0;
+  private static final double __kDeployHoldS = 2;
+  private static final double __kDeployHoldP = 10;
+  private static final double __kDeployHoldD = 0;
 
-  private static final double __kRollerVelocity = 2700; // RPMs
-  private static final double __kHoverPosition = 20; // degrees
-  private static final double __kDeployPosition = 0; // degrees
+  private static final double __kDeployExtendS = 0;
+  private static final double __kDeployExtendP = 5;
+  private static final double __kDeployExtendI = 0.5;
+  private static final double __kDeployExtendD = 0.5;
+
+  private static final double __kDeployRetractS = 0;
+  private static final double __kDeployRetractP = 5;
+  private static final double __kDeployRetractI = 0.5;
+  private static final double __kDeployRetractD = 0.5;
+
+  private static final double __kRollerVelocity = 2750; // RPMs
+  private static final double __kRetractedPosition = 1; // inches
+  private static final double __kExtendedPosition = 11; // inches
 
   @Logged(name = "Roller", importance = Importance.CRITICAL)
   private final LoggedTalonFX rollerMotor;
 
-  @Logged(name = "Arm", importance = Importance.CRITICAL)
-  private final LoggedTalonFX armMotor;
+  @Logged(name = "Deploy", importance = Importance.CRITICAL)
+  private final LoggedTalonFX deployMotor;
 
-  @Logged(name = "Setpoint/Arm", importance = Importance.DEBUG)
-  private Angle armSetpoint = Degrees.of(0);
+  @Logged(name = "Setpoint/Deploy", importance = Importance.DEBUG)
+  private double deploySetpoint = 0;
 
   @Logged(name = "Setpoint/Roller", importance = Importance.DEBUG)
   private double rollerSetpoint = 0;
 
   private final VelocityTorqueCurrentFOC rollerControl;
-  private final PositionTorqueCurrentFOC armMoveControl;
-  private final PositionTorqueCurrentFOC armHoldControl;
+  private final PositionTorqueCurrentFOC deployHoldControl;
+  private final PositionTorqueCurrentFOC deployExtendControl;
+  private final PositionTorqueCurrentFOC deployRetractControl;
 
   @Logged(name = "Enabled", importance = Importance.CRITICAL)
   private boolean enabled = false;
 
+  private static enum State {
+    kHolding,
+    kExtending,
+    kRetracting,
+  };
+
+  private State state = State.kHolding;
+
   private boolean deployed;
-  private boolean stopped;
 
   private static final double kRollerStatorCurrentLimit = 50.0;
-  private static final double kArmStatorCurrentLimit = 50.0;
+  private static final double kDeployStatorCurrentLimit = 40.0;
 
   private static final double kRollerConversionFactor = 36.0 / 18.0;
-  private static final double kArmConversionFactor = 61.1;
+  private static final double kDeployConversionFactor = 10.0 / (1.6 * Math.PI);
   private static final double kRollerTolerance = 50.0; // RPMs
-  private static final double kArmTolerance = 2.0; // degrees
-  private static final double kArmHoldThreshold = 7.0; // degrees
-  private static final Angle kStowedPosition = Degrees.of(90);
-  private static final Angle kMaxPosition = Degrees.of(120);
-  private static final Angle kMinPosition = Degrees.of(-5);
+  private static final double kDeployTolerance = 0.5; // inches
+  private static final double kMaxPosition = 11.5;
+  private static final double kMinPosition = 0;
 
   public Intake(CANBus canbus) {
     rollerMotor =
@@ -96,100 +107,95 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
               config.Slot0.kD = __kRollerD;
             });
 
-    armMotor =
+    deployMotor =
         new LoggedTalonFX(
-            Constants.CanivoreID.MOTOR_INTAKE_ARM,
+            Constants.CanivoreID.MOTOR_INTAKE_DEPLOY,
             canbus,
             (config) -> {
-              config.CurrentLimits.StatorCurrentLimit = kArmStatorCurrentLimit;
+              config.CurrentLimits.StatorCurrentLimit = kDeployStatorCurrentLimit;
               config.CurrentLimits.StatorCurrentLimitEnable = true;
               config.MotorOutput.NeutralMode = NeutralModeValue.Brake;
-              config.MotorOutput.Inverted = InvertedValue.Clockwise_Positive;
               config.MotorOutput.ControlTimesyncFreqHz = 250;
-              config.Feedback.SensorToMechanismRatio = kArmConversionFactor;
               config.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;
-              config.SoftwareLimitSwitch.ForwardSoftLimitThreshold = kMaxPosition.in(Rotations);
+              config.SoftwareLimitSwitch.ForwardSoftLimitThreshold =
+                  kMaxPosition * kDeployConversionFactor;
               config.SoftwareLimitSwitch.ReverseSoftLimitEnable = true;
-              config.SoftwareLimitSwitch.ReverseSoftLimitThreshold = kMinPosition.in(Rotations);
+              config.SoftwareLimitSwitch.ReverseSoftLimitThreshold =
+                  kMinPosition * kDeployConversionFactor;
 
-              config.Slot0.kS = __kArmMoveS;
-              config.Slot0.kG = __kArmMoveG;
-              config.Slot0.kP = __kArmMoveP;
-              config.Slot0.kD = __kArmMoveD;
-              config.Slot0.GravityType = GravityTypeValue.Arm_Cosine;
+              config.Slot0.kS = __kDeployHoldS;
+              config.Slot0.kP = __kDeployHoldP;
+              config.Slot0.kD = __kDeployHoldD;
               config.Slot0.StaticFeedforwardSign = StaticFeedforwardSignValue.UseClosedLoopSign;
 
-              config.Slot1.kS = __kArmHoldS;
-              config.Slot1.kG = __kArmHoldG;
-              config.Slot1.kP = __kArmHoldP;
-              config.Slot1.kD = __kArmHoldD;
-              config.Slot1.GravityType = GravityTypeValue.Arm_Cosine;
+              config.Slot1.kS = __kDeployExtendS;
+              config.Slot1.kP = __kDeployExtendP;
+              config.Slot1.kI = __kDeployExtendI;
+              config.Slot1.kD = __kDeployExtendD;
               config.Slot1.StaticFeedforwardSign = StaticFeedforwardSignValue.UseClosedLoopSign;
+
+              config.Slot2.kS = __kDeployRetractS;
+              config.Slot2.kP = __kDeployRetractP;
+              config.Slot2.kI = __kDeployRetractI;
+              config.Slot2.kD = __kDeployRetractD;
+              config.Slot2.StaticFeedforwardSign = StaticFeedforwardSignValue.UseClosedLoopSign;
             });
 
     rollerControl =
         new VelocityTorqueCurrentFOC(0).withSlot(0).withUseTimesync(true).withUpdateFreqHz(0);
 
-    armMoveControl =
+    deployHoldControl =
         new PositionTorqueCurrentFOC(0).withSlot(0).withUseTimesync(true).withUpdateFreqHz(0);
 
-    armHoldControl =
+    deployExtendControl =
         new PositionTorqueCurrentFOC(0).withSlot(1).withUseTimesync(true).withUpdateFreqHz(0);
+
+    deployRetractControl =
+        new PositionTorqueCurrentFOC(0).withSlot(2).withUseTimesync(true).withUpdateFreqHz(0);
 
     // make configuration tunable (must be done after configuration is bound to the motor)
     Tunable.bind("Roller", rollerMotor);
-    Tunable.bind("Arm/Move", armMotor);
-    Tunable.bind1("Arm/Hold", armMotor);
+    Tunable.bind("Deploy/Hold", deployMotor);
+    Tunable.bind1("Deploy/Extend", deployMotor);
+    Tunable.bind2("Deploy/Retract", deployMotor);
 
     // zero position based on the initial configuration
-    PhoenixUtil.run("Intake Arm Zero", armMotor.getDeviceID(), () -> armMotor.setPosition(0));
+    PhoenixUtil.run(
+        "Intake Deploy Zero", deployMotor.getDeviceID(), () -> deployMotor.setPosition(0));
   }
 
   @Override
   public void periodic() {
+    ControlRequest controlRequest;
+    switch (state) {
+      case kExtending:
+        controlRequest = deployExtendControl.withPosition(deploySetpoint * kDeployConversionFactor);
+        break;
+      case kRetracting:
+        controlRequest =
+            deployRetractControl.withPosition(deploySetpoint * kDeployConversionFactor);
+        break;
+      default:
+        controlRequest = deployHoldControl.withPosition(deploySetpoint * kDeployConversionFactor);
+        break;
+    }
+
+    // switch to holding pattern once the position is reached
+    if (state != State.kHolding
+        && MathUtil.isNear(deploySetpoint, getPosition(), kDeployTolerance)) {
+      deployed = state == State.kExtending;
+      state = State.kHolding;
+    }
+
+    deployMotor.setControl(controlRequest);
+
     if (enabled) {
       rollerSetpoint = kRollerVelocity.get();
       rollerMotor.setControl(
           rollerControl.withVelocity(
               RotationsPerSecond.convertFrom(rollerSetpoint, RPM) * kRollerConversionFactor));
-
-      armSetpoint =
-          Degrees.of(rollerMotor.isStalled() ? kHoverPosition.get() : kDeployPosition.get());
-
-      // we have two control modes here to consider: when we are at zero, we are resting
-      // on the hard stops and we don't need kG/kS to maintain position, however, for
-      // the full motion we need to use control mode with kG/kS
-      //
-      // note that we only switch to hold mode when we are _actually_ close to the zero setpoint
-      if (armSetpoint.in(Degrees) <= kArmHoldThreshold
-          && getAngle().in(Degrees) <= kArmHoldThreshold)
-        armMotor.setControl(armHoldControl.withPosition(armSetpoint.in(Rotations)));
-      else armMotor.setControl(armMoveControl.withPosition(armSetpoint.in(Rotations)));
-
-      // if (deployed) {
-      //   armSetpoint = Degrees.of(kDeployPosition.get());
-
-      //   if (stopped) {
-      //     rollerSetpoint = 0;
-      //     rollerMotor.stopMotor();
-      //   } else {
-      //     rollerSetpoint = kRollerVelocity.get();
-      //     rollerMotor.setControl(
-      //         rollerControl.withVelocity(
-      //             RotationsPerSecond.convertFrom(rollerSetpoint, RPM) *
-      // kRollerConversionFactor));
-      //   }
-      // } else {
-      //   armSetpoint = kStowedPosition;
-      //   rollerSetpoint = 0;
-      //   rollerMotor.stopMotor();
-      // }
-
-      // armMotor.setControl(
-      //     armControl.withPosition(armSetpoint.in(Rotations) * kArmConversionFactor));
     } else {
       rollerMotor.stopMotor();
-      armMotor.stopMotor();
     }
   }
 
@@ -201,7 +207,7 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
   /** Determines whether the subsystem is at its nominal state. */
   @Logged(name = "Nominal", importance = Importance.CRITICAL)
   public boolean isNominal() {
-    return MathUtil.isNear(armSetpoint.in(Degrees), getAngle().in(Degrees), kArmTolerance)
+    return MathUtil.isNear(deploySetpoint, getPosition(), kDeployTolerance)
         && MathUtil.isNear(rollerSetpoint, getVelocity(), kRollerTolerance);
   }
 
@@ -210,9 +216,9 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
     return rollerMotor.getMotorVelocity().in(RPM) / kRollerConversionFactor;
   }
 
-  @Logged(name = "Angle", importance = Importance.CRITICAL)
-  public Angle getAngle() {
-    return armMotor.getMotorPosition();
+  @Logged(name = "Position", importance = Importance.CRITICAL)
+  public double getPosition() {
+    return deployMotor.getMotorPosition().in(Rotations) / kDeployConversionFactor;
   }
 
   /** Disables the subsystem. */
@@ -225,37 +231,30 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
     return runOnce(() -> enabled = true).withName("IntakeEnable");
   }
 
-  /** Deploys the intake. */
-  public Command deploy() {
-    return runOnce(() -> deployed = true).withName("IntakeDeploy");
+  /** Extends the intake. */
+  public Command extend() {
+    return runOnce(
+            () -> {
+              state = State.kExtending;
+              deploySetpoint = kExtendedPosition.get();
+            })
+        .withName("IntakeExtend");
   }
 
   /** Retracts the intake. */
   public Command retract() {
-    return runOnce(() -> deployed = false).withName("IntakeRetract");
-  }
-
-  /** Stops the intake roller. */
-  public Command stop() {
     return runOnce(
             () -> {
-              stopped = true;
+              state = State.kRetracting;
+              deploySetpoint = kRetractedPosition.get();
             })
-        .withName("IntakeStop");
-  }
-
-  /** Starts the intake roller. */
-  public Command start() {
-    return runOnce(
-            () -> {
-              stopped = false;
-            })
-        .withName("IntakeStart");
+        .withName("IntakeRetract");
   }
 
   @Override
   public double getTotalSupplyCurrent() {
-    return Math.abs(armMotor.getSupplyCurrentAmps()) + Math.abs(rollerMotor.getSupplyCurrentAmps());
+    return Math.abs(deployMotor.getSupplyCurrentAmps())
+        + Math.abs(rollerMotor.getSupplyCurrentAmps());
   }
 
   /** Runs self-check. */
@@ -266,7 +265,7 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
 
   // spotless:off
   private static Tunable.DoubleValue kRollerVelocity = Tunable.value("Roller/Velocity", __kRollerVelocity);
-  private static Tunable.DoubleValue kDeployPosition = Tunable.value("Arm/Deploy", __kDeployPosition);
-  private static Tunable.DoubleValue kHoverPosition = Tunable.value("Arm/Hover", __kHoverPosition);
+  private static Tunable.DoubleValue kExtendedPosition = Tunable.value("Deploy/Extended", __kExtendedPosition);
+  private static Tunable.DoubleValue kRetractedPosition = Tunable.value("Deploy/Retracted", __kRetractedPosition);
   // spotless:on
 }

@@ -95,8 +95,8 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
   //    make sure the cord is in a neutral position and not wrapped around
   // 2. read the encoder values in the AdvantageScope and set these offsets
   //    to the corresponding sign-inverted values
-  private static final Angle kEncoder1Offset = Degrees.of(-45.68);
-  private static final Angle kEncoder2Offset = Degrees.of(-175.77);
+  private static final Angle kEncoder1Offset = Degrees.of(-132.17);
+  private static final Angle kEncoder2Offset = Degrees.of(-197.43);
 
   // min/max safe CRT range: these are dependent on the gear geometry
   // and do NOT represent the safe range of motion
@@ -437,16 +437,15 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
         Commands.print("Turret initialized"),
         runOnce(() -> kSetpointManualOverride.set(true)),
         Commands.print("Turret to 0"),
-        run(() -> kSetpointManual.set(0)).withTimeout(Seconds.of(1)),
+        run(() -> kSetpointManual.set(0)).withTimeout(Seconds.of(2)),
         Commands.print("Turret to 90"),
-        run(() -> kSetpointManual.set(90)).withTimeout(Seconds.of(1)),
+        run(() -> kSetpointManual.set(90)).withTimeout(Seconds.of(2)),
         Commands.print("Turret to 180"),
-        run(() -> kSetpointManual.set(180)).withTimeout(Seconds.of(1)),
-        Commands.print("Turret to -180"),
-        run(() -> kSetpointManual.set(-180)).withTimeout(Seconds.of(2)),
+        run(() -> kSetpointManual.set(180)).withTimeout(Seconds.of(2)),
         Commands.print("Turret to -90"),
-        run(() -> kSetpointManual.set(-90)).withTimeout(Seconds.of(1)),
-        run(() -> kSetpointManual.set(0)).withTimeout(Seconds.of(1)),
+        run(() -> kSetpointManual.set(-90)).withTimeout(Seconds.of(2)),
+        Commands.print("Turret to 0"),
+        run(() -> kSetpointManual.set(0)).withTimeout(Seconds.of(2)),
         runOnce(() -> kSetpointManualOverride.set(false)),
         Commands.print("Turret self-check completed"));
   }

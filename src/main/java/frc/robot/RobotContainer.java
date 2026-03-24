@@ -20,7 +20,6 @@ import edu.wpi.first.wpilibj2.command.button.CommandGenericHID;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
-import frc.robot.RobotState.PassingPoint;
 import frc.robot.commands.WheelDiameterCharacterization;
 import frc.robot.generated.TunerConstants;
 import frc.robot.lib.CANduit;
@@ -92,6 +91,8 @@ public class RobotContainer {
   private final Trigger climbButton = controllerDriver.leftBumper();
   private final Trigger climbUpButton = controllerDriver.povUp();
   private final Trigger climbDownButton = controllerDriver.povDown();
+  private final Trigger intakeExtend = controllerDriver.povRight();
+  private final Trigger intakeRetract = controllerDriver.povLeft();
 
   // condition on when the robot is allowed to initiate shooting sequence
   public final Trigger canShoot;
@@ -117,6 +118,11 @@ public class RobotContainer {
   public RobotContainer(CANduit canduit) {
     this.canduit = canduit;
     turret = new Turret(TunerConstants.kCANBus, canduit);
+
+    // triggers must be initialized before auto routines are constructed
+    // shooting sequence condition
+    canShoot = new Trigger(turret.isReady).and(state::isLevel);
+
     auto = new AutoRoutines(this, drivetrain);
 
     state.bind(drivetrain);
@@ -141,9 +147,6 @@ public class RobotContainer {
     energyTracker.register("Turret", turret);
     energyTracker.register("Shooter", shooter);
     energyTracker.register("Climb", climb);
-
-    // shooting sequence condition
-    canShoot = new Trigger(turret.isReady).and(state::isLevel);
   }
 
   /** Smooth out control input by squaring. */
@@ -198,31 +201,25 @@ public class RobotContainer {
     climbButton.and(climb::isReady).onTrue(climb.engage());
     resetButton.and(climb::isEngaged).onTrue(climb.disengage());
 
-    buttonator
-        .button(1)
-        .onTrue(Commands.runOnce(() -> state.setPassingTarget(PassingPoint.kDefault)));
-    buttonator
-        .button(2)
-        .onTrue(Commands.runOnce(() -> state.setPassingTarget(PassingPoint.kTrenchAuto)));
-    buttonator
-        .button(3)
-        .onTrue(Commands.runOnce(() -> state.setPassingTarget(PassingPoint.kTrenchUpper)));
-    buttonator
-        .button(4)
-        .onTrue(Commands.runOnce(() -> state.setPassingTarget(PassingPoint.kTrenchLower)));
+    intakeExtend.onTrue(intake.extend());
+    intakeRetract.onTrue(intake.retract());
 
-    buttonator.button(7).onTrue(auto.test1());
-    buttonator.button(8).onTrue(auto.test2());
-    buttonator.button(9).onTrue(auto.climb());
-    buttonator.button(10).onTrue(auto.test3());
+    buttonator.button(1).onTrue(state.setPassingToDefault());
+    buttonator.button(2).onTrue(state.setPassingToTrenchAuto());
+    buttonator.button(3).onTrue(state.setPassingToTrenchUpper());
+    buttonator.button(4).onTrue(state.setPassingToTrenchLower());
 
-    buttonator.button(16).onTrue(selfCheck());
+    buttonator.button(6).onTrue(auto.trenchLBump2Runs());
+    buttonator.button(7).onTrue(auto.trenchRBump2Runs());
 
-    // controllerDriver
-    //     .povLeft()
-    //     .whileTrue(
-    //         new DriveToPose(
-    //             drivetrain, () -> Optional.of(state.getTuningShotPose()), state::getRobotPose));
+    // buttonator.button(7).onTrue(auto.test1());
+    // buttonator.button(8).onTrue(auto.test2());
+    // buttonator.button(9).onTrue(auto.test3());
+    buttonator.button(10).onTrue(auto.climbLeft());
+    buttonator.button(11).onTrue(auto.climbRight());
+
+    // self-check
+    buttonator.button(12).onTrue(selfCheck());
   }
 
   /** Use this method to configure trigger bindings. */

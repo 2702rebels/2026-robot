@@ -285,14 +285,14 @@ public final class Shooter extends SubsystemBase implements EnergyReporter {
         // hood sequence
         runOnce(() -> kHoodManualOverride.set(true)),
         Commands.print("Hood to 10"),
-        run(() -> kHoodManual.set(10)).withTimeout(Seconds.of(1)),
+        run(() -> kHoodManual.set(10)).withTimeout(Seconds.of(2)),
         Commands.print("Hood to 20"),
-        run(() -> kHoodManual.set(20)).withTimeout(Seconds.of(1)),
+        run(() -> kHoodManual.set(20)).withTimeout(Seconds.of(2)),
         Commands.print("Hood to 30"),
-        run(() -> kHoodManual.set(30)).withTimeout(Seconds.of(1)),
+        run(() -> kHoodManual.set(30)).withTimeout(Seconds.of(2)),
         Commands.print("Hood parked"),
         parkHood().withTimeout(Seconds.of(2)),
-        run(() -> kHoodManual.set(0)).withTimeout(Seconds.of(1)),
+        run(() -> kHoodManual.set(0)).withTimeout(Seconds.of(2)),
         runOnce(() -> kHoodManualOverride.set(false)),
         // flywheel sequence
         runOnce(() -> kFlywheelManualOverride.set(true)),

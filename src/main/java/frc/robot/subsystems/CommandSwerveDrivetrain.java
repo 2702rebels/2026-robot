@@ -541,9 +541,10 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain
         brake().withTimeout(Seconds.of(1)),
         wheelsForward().withTimeout(Seconds.of(1)),
         run(() -> driveAtFieldRelative(0, 0, maxAngularRateRadiansPerSecond * 0.5))
-            .withTimeout(Seconds.of(3)),
+            .withTimeout(Seconds.of(2)),
         run(() -> driveAtFieldRelative(0, 0, -maxAngularRateRadiansPerSecond * 0.5))
-            .withTimeout(Seconds.of(3)),
+            .withTimeout(Seconds.of(2)),
+        runOnce(() -> stop()),
         Commands.print("Drivetrain self-check completed"));
   }
 

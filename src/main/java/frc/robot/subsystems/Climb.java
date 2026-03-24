@@ -265,8 +265,10 @@ public final class Climb extends SubsystemBase implements EnergyReporter {
         Commands.print("Climb self-check started"),
         Commands.waitUntil(this::isInitialized),
         Commands.print("Climb initialized"),
-        extend().withTimeout(Seconds.of(2)),
-        retract().withTimeout(Seconds.of(1)),
+        extend(),
+        Commands.waitTime(Seconds.of(2)),
+        retract(),
+        Commands.waitTime(Seconds.of(1)),
         Commands.print("Climb self-check completed"));
   }
 

@@ -66,6 +66,19 @@ public class AutoRoutines {
         .asProxy();
   }
 
+  private Command climbExtend() {
+    return container.climb.extend().asProxy();
+  }
+
+  private Command climbEngage() {
+    return container.climb.engage().asProxy();
+  }
+
+  private static final Path climbL = new Path("Climb L");
+  private static final Path climbR = new Path("Climb R");
+  private static final Path trenchLBump2Runs = new Path("Trench L Bump 2 Runs");
+  private static final Path trenchRBump2Runs = new Path("Trench L Bump 2 Runs");
+
   public AutoRoutines(RobotContainer container, CommandSwerveDrivetrain drivetrain) {
     this.container = container;
     this.drivetrain = drivetrain;
@@ -77,16 +90,17 @@ public class AutoRoutines {
     }
 
     // events
-    FollowPath.registerEventTrigger("climb_extend", container.climb.extend().asProxy());
+    FollowPath.registerEventTrigger("climb_extend", climbExtend());
+    FollowPath.registerEventTrigger("climb_engage", climbEngage());
     FollowPath.registerEventTrigger("intake_start", container.intake.enable().asProxy());
     FollowPath.registerEventTrigger("intake_stop", container.intake.disable().asProxy());
-    FollowPath.registerEventTrigger("intake_deploy", container.intake.deploy().asProxy());
+    FollowPath.registerEventTrigger("intake_extend", container.intake.extend().asProxy());
     FollowPath.registerEventTrigger("shoot_4", shoot(Seconds.of(4)));
     FollowPath.registerEventTrigger("shoot_5", shoot(Seconds.of(5)));
 
     Path.setDefaultGlobalConstraints(
         new Path.DefaultGlobalConstraints(
-            3.0, // maximum velocity (m/s)
+            3.5, // maximum velocity (m/s)
             6.0, // maximum acceleration (m/s^2)
             540, // max angular velocity (deg/s)
             1080, // max angular acceleration (deg/s^2)
@@ -105,6 +119,8 @@ public class AutoRoutines {
                 rotationController,
                 crossTrackController)
             .withDefaultShouldFlip();
+
+    trenchRBump2Runs.mirror();
   }
 
   private static final Path climb = new Path("Climb");
@@ -112,12 +128,28 @@ public class AutoRoutines {
   private static final Path sweepTrenchLOverBump = new Path("Sweep Trench L over Bump");
   private static final Path trenchLRArcStation = new Path("Trench LR Arc Station");
 
+  public Command climbLeft() {
+    return pathBuilder.build(climbL).withTimeout(Seconds.of(2.5)).andThen(climbEngage());
+  }
+
+  public Command climbRight() {
+    return pathBuilder.build(climbR).withTimeout(Seconds.of(2.5)).andThen(climbEngage());
+  }
+
+  public Command trenchLBump2Runs() {
+    return pathBuilder.build(trenchLBump2Runs);
+  }
+
+  public Command trenchRBump2Runs() {
+    return pathBuilder.build(trenchRBump2Runs);
+  }
+
   public Command test1() {
     return pathBuilder.build(sweepTrenchLOverBump);
   }
 
   public Command test2() {
-    return pathBuilder.build(sweepTrenchL).andThen(shoot(Seconds.of(3)));
+    return pathBuilder.build(sweepTrenchL).andThen(shoot(Seconds.of(4)));
   }
 
   public Command test3() {

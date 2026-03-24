@@ -24,6 +24,8 @@ import edu.wpi.first.units.measure.Distance;
 import edu.wpi.first.units.measure.Time;
 import edu.wpi.first.units.measure.Voltage;
 import edu.wpi.first.wpilibj.RobotController;
+import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.robot.generated.TunerConstants;
 import frc.robot.lib.GamePhaseTracker.Phase;
@@ -109,7 +111,7 @@ public class RobotState {
       new ShotCalculator.ShotParameters(
           Translation2d.kZero, Meters.zero(), Seconds.zero(), 0, 0, 0, 0);
 
-  private boolean shotAllowed;
+  private boolean shotPossible;
 
   private final MedianFilter shotVelocity = new MedianFilter(5);
   private final MedianFilter shotAngle = new MedianFilter(5);
@@ -146,9 +148,9 @@ public class RobotState {
     return Degrees.of(turretAngle.lastValue());
   }
 
-  @Logged(name = "Shot/Allowed", importance = Importance.CRITICAL)
-  public boolean isShotAllowed() {
-    return shotAllowed;
+  @Logged(name = "Shot/Possible", importance = Importance.CRITICAL)
+  public boolean isShotPossible() {
+    return shotPossible;
   }
 
   private RobotState() {
@@ -341,7 +343,7 @@ public class RobotState {
 
   /** Returns effective shooter parameters. */
   public Optional<Pair<Double, Double>> getShooterParameters() {
-    return shotAllowed
+    return shotPossible
         ? Optional.of(Pair.of(shotAngle.lastValue(), shotVelocity.lastValue()))
         : Optional.empty();
   }
@@ -436,14 +438,14 @@ public class RobotState {
     if (Field.isInPassingZone(poseXY)) {
       shotParameters =
           passCalculator.calculate(pose, drivetrain.getFieldSpeeds(), getPassingTarget());
-      shotAllowed = true;
+      shotPossible = true;
     } else {
       final var speeds = drivetrain.getFieldSpeeds();
       shotParameters =
           shotCalculator.calculate(pose, speeds, Field.fieldTranslation.apply(Field.kHubCenter));
 
       // prepare the shot but do not shoot unless actually within the shooting zone
-      shotAllowed =
+      shotPossible =
           Field.isInShootingZone(poseXY)
               && shotParameters.quality() >= 0.5
               && shotParameters.distance().gte(kMinScoreDistance)
@@ -554,6 +556,22 @@ public class RobotState {
   /** Sets passing target. */
   public void setPassingTarget(PassingPoint targetPoint) {
     passingPoint = targetPoint;
+  }
+
+  public Command setPassingToDefault() {
+    return Commands.runOnce(() -> setPassingTarget(PassingPoint.kDefault));
+  }
+
+  public Command setPassingToTrenchAuto() {
+    return Commands.runOnce(() -> setPassingTarget(PassingPoint.kTrenchAuto));
+  }
+
+  public Command setPassingToTrenchUpper() {
+    return Commands.runOnce(() -> setPassingTarget(PassingPoint.kTrenchUpper));
+  }
+
+  public Command setPassingToTrenchLower() {
+    return Commands.runOnce(() -> setPassingTarget(PassingPoint.kTrenchLower));
   }
 
   /** Returns appropriate passing target based on the selection and robot pose. */
