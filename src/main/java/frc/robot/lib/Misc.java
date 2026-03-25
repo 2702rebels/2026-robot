@@ -1,9 +1,11 @@
 package frc.robot.lib;
 
+import edu.wpi.first.math.filter.Debouncer;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.wpilibj.util.Color;
+import java.util.function.BooleanSupplier;
 
 public final class Misc {
   private static final double TwoPI = 2 * Math.PI;
@@ -132,5 +134,23 @@ public final class Misc {
     final var c = -(a * target.getX() + b * target.getY());
 
     return a * current.getX() + b * current.getY() + c >= threshold;
+  }
+
+  /** Creates a new debounced version of the condition. */
+  public static BooleanSupplier debounce(BooleanSupplier condition, double seconds) {
+    return debounce(condition, seconds, Debouncer.DebounceType.kRising);
+  }
+
+  /** Creates a new debounced version of the condition. */
+  public static BooleanSupplier debounce(
+      BooleanSupplier condition, double seconds, Debouncer.DebounceType type) {
+    return new BooleanSupplier() {
+      final Debouncer debouncer = new Debouncer(seconds, type);
+
+      @Override
+      public boolean getAsBoolean() {
+        return debouncer.calculate(condition.getAsBoolean());
+      }
+    };
   }
 }

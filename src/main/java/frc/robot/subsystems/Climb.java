@@ -3,7 +3,7 @@ package frc.robot.subsystems;
 import static edu.wpi.first.units.Units.*;
 
 import com.ctre.phoenix6.CANBus;
-import com.ctre.phoenix6.controls.MotionMagicVoltage;
+import com.ctre.phoenix6.controls.DynamicMotionMagicVoltage;
 import com.ctre.phoenix6.controls.PositionVoltage;
 import com.ctre.phoenix6.signals.AdvancedHallSupportValue;
 import com.ctre.phoenix6.signals.InvertedValue;
@@ -52,7 +52,7 @@ public final class Climb extends SubsystemBase implements EnergyReporter {
   private Distance setpoint = Inches.zero();
 
   private final PositionVoltage control;
-  private final MotionMagicVoltage controlLower;
+  private final DynamicMotionMagicVoltage controlProfiled;
 
   // indicates that the subsystem has been initialized by zeroing the position of the climb
   private boolean initialized = false;
@@ -102,8 +102,8 @@ public final class Climb extends SubsystemBase implements EnergyReporter {
             .withUpdateFreqHz(0)
             .withEnableFOC(true);
 
-    controlLower =
-        new MotionMagicVoltage(0)
+    controlProfiled =
+        new DynamicMotionMagicVoltage(0, __kMaxVelocity, __kMaxAcceleration)
             .withSlot(1)
             .withUseTimesync(true)
             .withUpdateFreqHz(0)
@@ -111,8 +111,8 @@ public final class Climb extends SubsystemBase implements EnergyReporter {
 
     // make configuration tunable (must be done after configuration is bound to the motor)
     Tunable.bind("Climb", motor);
-    Tunable.bind1("Climb/Lower", motor);
-    Tunable.bindMotionProfile("Climb/Lower", motor);
+    Tunable.bind1("Climb/Profiled", motor);
+    Tunable.bindMotionProfile("Climb/Profiled", motor);
   }
 
   @Override
@@ -135,13 +135,20 @@ public final class Climb extends SubsystemBase implements EnergyReporter {
         setpoint = Inches.of(kPositionManual.get());
       }
 
-      // use profiled motion if the climb is engaged to lower the robot
+      // use profiled motion if the climb is engaged to lower the robot;
+      // use faster profiled motion to extend the climb;
       // otherwise, use simple PID to jump to the setpoint
       final var position = setpoint.in(Inches) * kConversionFactor;
-      motor.setControl(
-          state == State.kEngaged
-              ? controlLower.withPosition(position)
-              : control.withPosition(position));
+
+      if (state == State.kEngaged) {
+        controlProfiled.Velocity = __kMaxVelocity;
+        motor.setControl(controlProfiled.withPosition(position));
+      } else if (getPosition().lt(setpoint) && state != State.kEngaging) {
+        controlProfiled.Velocity = __kMaxVelocity * 1.4;
+        motor.setControl(controlProfiled.withPosition(position));
+      } else {
+        motor.setControl(control.withPosition(position));
+      }
     }
 
     // reset "engaged" flag once the hook is fully extended
@@ -231,7 +238,7 @@ public final class Climb extends SubsystemBase implements EnergyReporter {
   public Command disengage() {
     return runOnce(
             () -> {
-              setpoint = Inches.of(kPositionExtended.get());
+              setpoint = Inches.of(kPositionExtended.get() - 0.5);
             })
         .withName("ClimbDisengage")
         // a "hack" that resets the "engaged" flag after a timeout in case we never fully

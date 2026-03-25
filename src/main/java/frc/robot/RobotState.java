@@ -23,6 +23,7 @@ import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.Distance;
 import edu.wpi.first.units.measure.Time;
 import edu.wpi.first.units.measure.Voltage;
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
@@ -55,7 +56,7 @@ public class RobotState {
     kTrenchLower,
   }
 
-  private static final long kVisionCutoff = 60 * 1000; // microseconds
+  private static final long kVisionCutoff = 100 * 1000; // microseconds
 
   private static final double kStationaryVelocityTolerance = 0.1; // 10 cm/sec
   private static final double kStationarySpeedTolerance = 0.05; // 5 cm/sec
@@ -72,6 +73,14 @@ public class RobotState {
   private static final Distance kMinScoreDistance = Meters.of(1.5);
   private static final Distance kMaxScoreDistance = Meters.of(6);
   private static final double kMaxScoreSpeed = 2.5; // m/s
+
+  // fudge factor (in seconds) to allow shooting to start before hub becomes active
+  // captures both the mechanism delay (0.5s) and ToF (~1s)
+  private static final double kTimeBeforeActiveFudge = 1.5;
+
+  // fudget factor (in seconds) to allow shooting to extend after hub becomes inactive
+  // captures both the hub counting extension (3s) and ToF (~1s)
+  private static final double kTimeAfterActiveFudge = 1.5;
 
   // offset to the center of the turret in meters
   public static final Translation2d kShooterOffsetXY =
@@ -151,6 +160,23 @@ public class RobotState {
   @Logged(name = "Shot/Possible", importance = Importance.CRITICAL)
   public boolean isShotPossible() {
     return shotPossible;
+  }
+
+  @Logged(name = "Shot/Suppressed", importance = Importance.CRITICAL)
+  public boolean isShotSuppressed() {
+    // suppression only works when FMS is attached
+    if (!DriverStation.isFMSAttached()) {
+      return false;
+    }
+
+    // no supression while hub is active
+    if (hubActive) {
+      return false;
+    }
+
+    // fudge at before/after active phase
+    return phaseElapsedTime.in(Seconds) > kTimeAfterActiveFudge
+        && phaseRemainingTime.in(Seconds) > kTimeBeforeActiveFudge;
   }
 
   private RobotState() {

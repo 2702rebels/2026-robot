@@ -8,12 +8,14 @@ import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
 import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
+import edu.wpi.first.math.filter.Debouncer.DebounceType;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 import frc.robot.lib.EnergyReporter;
 import frc.robot.lib.LoggedTalonFX;
+import frc.robot.lib.Misc;
 import frc.robot.lib.Tunable;
 import java.util.function.BooleanSupplier;
 
@@ -33,6 +35,7 @@ public final class Hopper extends SubsystemBase implements EnergyReporter {
 
   private static final double __kSpindexerVelocity = 700; // RPMs
   private static final double __kFeedVelocity = 1500; // RPMs
+  private static final double __kReverseDutyCycle = -0.5;
 
   @Logged(name = "Spindexer", importance = Importance.CRITICAL)
   private final LoggedTalonFX spindexerMotor;
@@ -51,6 +54,8 @@ public final class Hopper extends SubsystemBase implements EnergyReporter {
 
   private static final double kSpindexerConversionFactor = (36.0 / 14.0) * (72.0 / 24.0);
   private static final double kFeedConversionFactor = 2.0;
+
+  private final BooleanSupplier stalled;
 
   public Hopper(CANBus canbus) {
     spindexerMotor =
@@ -96,19 +101,43 @@ public final class Hopper extends SubsystemBase implements EnergyReporter {
     // make configuration tunable (must be done after configuration is bound to the motor)
     Tunable.bind("Spindexer", spindexerMotor);
     Tunable.bind("Feed", feedMotor);
+
+    // debounce on both edges to avoid accidental triggering and give reversal time to run
+    stalled =
+        Misc.debounce(
+            () -> {
+              // spindexer can still move slowly so we have to do a custom check here
+              if (Math.abs(spindexerMotor.getTorqueCurrentAmps())
+                      > kSpindexerStatorCurrentLimit * 0.9
+                  && Math.abs(getSpindexerVelocity()) < 100) return true;
+
+              if (feedMotor.isStalled()) {
+                return true;
+              }
+
+              return false;
+            },
+            0.2,
+            DebounceType.kBoth);
   }
 
   @Override
   public void periodic() {
     if (enabled) {
-      spindexerMotor.setControl(
-          spindexerControl.withVelocity(
-              RotationsPerSecond.convertFrom(kSpindexerVelocity.get(), RPM)
-                  * kSpindexerConversionFactor));
+      // detect stall and reverse the motors
+      if (stalled.getAsBoolean()) {
+        spindexerMotor.set(kReverseDutyCycle.get());
+        feedMotor.set(kReverseDutyCycle.get());
+      } else {
+        spindexerMotor.setControl(
+            spindexerControl.withVelocity(
+                RotationsPerSecond.convertFrom(kSpindexerVelocity.get(), RPM)
+                    * kSpindexerConversionFactor));
 
-      feedMotor.setControl(
-          feedControl.withVelocity(
-              RotationsPerSecond.convertFrom(kFeedVelocity.get(), RPM) * kFeedConversionFactor));
+        feedMotor.setControl(
+            feedControl.withVelocity(
+                RotationsPerSecond.convertFrom(kFeedVelocity.get(), RPM) * kFeedConversionFactor));
+      }
     } else {
       spindexerMotor.stopMotor();
       feedMotor.stopMotor();
@@ -130,6 +159,7 @@ public final class Hopper extends SubsystemBase implements EnergyReporter {
     return runEnd(() -> enabled = true, () -> enabled = false).withName("EnableShooter");
   }
 
+  /** Enables the subsystem. */
   public Command enable(BooleanSupplier supplier) {
     return runEnd(() -> enabled = supplier.getAsBoolean(), () -> enabled = false)
         .withName("EnableShooterWithCondition");
@@ -152,5 +182,6 @@ public final class Hopper extends SubsystemBase implements EnergyReporter {
   // spotless:off
   private static Tunable.DoubleValue kSpindexerVelocity = Tunable.value("Spindexer/Velocity", __kSpindexerVelocity);
   private static Tunable.DoubleValue kFeedVelocity = Tunable.value("Feed/Velocity", __kFeedVelocity);
+  private static Tunable.DoubleValue kReverseDutyCycle = Tunable.value("Spindexer/Reverse", __kReverseDutyCycle);
   // spotless:on
 }

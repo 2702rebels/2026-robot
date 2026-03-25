@@ -14,6 +14,8 @@ import edu.wpi.first.wpilibj.Alert;
 import edu.wpi.first.wpilibj.Alert.AlertType;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.GenericHID.RumbleType;
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandGenericHID;
@@ -36,6 +38,7 @@ import frc.robot.subsystems.LedResource;
 import frc.robot.subsystems.LedVision;
 import frc.robot.subsystems.Shooter;
 import frc.robot.subsystems.Turret;
+import java.util.function.BooleanSupplier;
 
 public class RobotContainer {
   private static final int kControllerDriverPort = 0;
@@ -93,9 +96,13 @@ public class RobotContainer {
   private final Trigger climbDownButton = controllerDriver.povDown();
   private final Trigger intakeExtend = controllerDriver.povRight();
   private final Trigger intakeRetract = controllerDriver.povLeft();
+  private final Trigger intakeAgitate = controllerDriver.leftTrigger();
+  private final Trigger autoClimb = controllerDriver.y();
 
   // condition on when the robot is allowed to initiate shooting sequence
-  public final Trigger canShoot;
+  public final BooleanSupplier canShoot;
+
+  private final SendableChooser<Command> autoChooser = new SendableChooser<>();
 
   // alerts
   private static final Time kMissingAutoWinAllianceAlertThreshold = Seconds.of(1);
@@ -119,9 +126,9 @@ public class RobotContainer {
     this.canduit = canduit;
     turret = new Turret(TunerConstants.kCANBus, canduit);
 
-    // triggers must be initialized before auto routines are constructed
+    // must be initialized before auto routines are constructed
     // shooting sequence condition
-    canShoot = new Trigger(turret.isReady).and(state::isLevel);
+    canShoot = () -> turret.isReady.getAsBoolean() && state.isLevel() && !state.isShotSuppressed();
 
     auto = new AutoRoutines(this, drivetrain);
 
@@ -147,6 +154,13 @@ public class RobotContainer {
     energyTracker.register("Turret", turret);
     energyTracker.register("Shooter", shooter);
     energyTracker.register("Climb", climb);
+
+    // auto chooser
+    autoChooser.setDefaultOption("None", Commands.none());
+    autoChooser.addOption("Left 2-Run Trench Over Bump", auto.trenchLBump2Runs());
+    autoChooser.addOption("Right 2-Run Trench Over Bump", auto.trenchRBump2Runs());
+
+    SmartDashboard.putData(autoChooser);
   }
 
   /** Smooth out control input by squaring. */
@@ -203,6 +217,9 @@ public class RobotContainer {
 
     intakeExtend.onTrue(intake.extend());
     intakeRetract.onTrue(intake.retract());
+    intakeAgitate.whileTrue(intake.agitate());
+
+    autoClimb.onTrue(auto.climb());
 
     buttonator.button(1).onTrue(state.setPassingToDefault());
     buttonator.button(2).onTrue(state.setPassingToTrenchAuto());
@@ -254,19 +271,20 @@ public class RobotContainer {
                   alertMissingAutoWinAlliance.set(false);
                 }));
 
+    // hub to become active alert (5s prior)
+    new Trigger(
+            () ->
+                DriverStation.isTeleopEnabled()
+                    && !state.isHubActive()
+                    && state.getGamePhaseRemainingTime().in(Seconds) < 5)
+        .onTrue(rumble(Milliseconds.of(500)));
+
     // endgame alerts
     new Trigger(
             () ->
                 DriverStation.isTeleopEnabled()
                     && DriverStation.getMatchTime() > 0
-                    && DriverStation.getMatchTime() <= Math.round(kEndgameAlert1.get()))
-        .onTrue(rumble(Milliseconds.of(500)));
-
-    new Trigger(
-            () ->
-                DriverStation.isTeleopEnabled()
-                    && DriverStation.getMatchTime() > 0
-                    && DriverStation.getMatchTime() <= Math.round(kEndgameAlert2.get()))
+                    && DriverStation.getMatchTime() <= Math.round(kEndgameAlert.get()))
         .onTrue(
             Commands.sequence(
                 rumble(Milliseconds.of(200)),
@@ -289,7 +307,7 @@ public class RobotContainer {
   }
 
   public Command getAutonomousCommand() {
-    return Commands.print("No autonomous command configured");
+    return autoChooser.getSelected();
   }
 
   /** Returns feedback for LED subsystem */
@@ -330,8 +348,7 @@ public class RobotContainer {
   }
 
   // spotless:off
-  private static final Tunable.DoubleValue kEndgameAlert1 = Tunable.value("Endgame/Alert1", 30.0);
-  private static final Tunable.DoubleValue kEndgameAlert2 = Tunable.value("Endgame/Alert2", 10.0);
+  private static final Tunable.DoubleValue kEndgameAlert = Tunable.value("Endgame/Alert", 10.0);
   private static final Tunable.DoubleValue kPreciseRotation = Tunable.value("Control/PreciseRotation", 0.2);
   // spotless:on
 }

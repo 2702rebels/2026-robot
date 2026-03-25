@@ -1,6 +1,9 @@
 package frc.robot.subsystems;
 
-import static edu.wpi.first.units.Units.*;
+import static edu.wpi.first.units.Units.RPM;
+import static edu.wpi.first.units.Units.Rotations;
+import static edu.wpi.first.units.Units.RotationsPerSecond;
+import static edu.wpi.first.units.Units.Seconds;
 
 import com.ctre.phoenix6.CANBus;
 import com.ctre.phoenix6.controls.ControlRequest;
@@ -17,7 +20,6 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 import frc.robot.lib.EnergyReporter;
 import frc.robot.lib.LoggedTalonFX;
-import frc.robot.lib.PhoenixUtil;
 import frc.robot.lib.Tunable;
 
 public final class Intake extends SubsystemBase implements EnergyReporter {
@@ -32,23 +34,19 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
   // roller SPID values for VoltageVelocity control w/o FOC (in case we need it)
   // S = 0.18, V = 0.11, P = 7, D = 0
 
-  private static final double __kDeployHoldS = 2;
+  private static final double __kDeployHoldS = 0;
   private static final double __kDeployHoldP = 10;
   private static final double __kDeployHoldD = 0;
 
-  private static final double __kDeployExtendS = 0;
-  private static final double __kDeployExtendP = 5;
-  private static final double __kDeployExtendI = 0.5;
-  private static final double __kDeployExtendD = 0.5;
-
-  private static final double __kDeployRetractS = 0;
-  private static final double __kDeployRetractP = 5;
-  private static final double __kDeployRetractI = 0.5;
-  private static final double __kDeployRetractD = 0.5;
+  private static final double __kDeployMoveS = 0;
+  private static final double __kDeployMoveP = 5;
+  private static final double __kDeployMoveI = 0;
+  private static final double __kDeployMoveD = 0.2;
 
   private static final double __kRollerVelocity = 2750; // RPMs
   private static final double __kRetractedPosition = 1; // inches
   private static final double __kExtendedPosition = 11; // inches
+  private static final double __kAgitatedPosition = 1; // inches
 
   @Logged(name = "Roller", importance = Importance.CRITICAL)
   private final LoggedTalonFX rollerMotor;
@@ -64,31 +62,49 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
 
   private final VelocityTorqueCurrentFOC rollerControl;
   private final PositionTorqueCurrentFOC deployHoldControl;
-  private final PositionTorqueCurrentFOC deployExtendControl;
-  private final PositionTorqueCurrentFOC deployRetractControl;
+  private final PositionTorqueCurrentFOC deployMoveControl;
 
   @Logged(name = "Enabled", importance = Importance.CRITICAL)
   private boolean enabled = false;
+
+  // indicates that the subsystem has been initialized by zeroing the position of the intake
+  private boolean initialized = false;
 
   private static enum State {
     kHolding,
     kExtending,
     kRetracting,
+    kAgitating,
   };
 
-  private State state = State.kHolding;
+  @Logged(name = "State", importance = Importance.CRITICAL)
+  public State state = State.kHolding;
 
   private boolean deployed;
 
-  private static final double kRollerStatorCurrentLimit = 50.0;
+  private static final double kRollerStatorCurrentLimit = 80.0;
   private static final double kDeployStatorCurrentLimit = 40.0;
 
   private static final double kRollerConversionFactor = 36.0 / 18.0;
   private static final double kDeployConversionFactor = 10.0 / (1.6 * Math.PI);
-  private static final double kRollerTolerance = 50.0; // RPMs
+  private static final double kRollerTolerance = 100.0; // RPMs
   private static final double kDeployTolerance = 0.5; // inches
-  private static final double kMaxPosition = 11.5;
-  private static final double kMinPosition = 0;
+  private static final double kDeployMaxPosition = 11.5; // inches
+  private static final double kDeployMinPosition = 0;
+
+  // Expo kV and kA characterize the profile not gains
+  // https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/motion-magic.html#motion-magic-expo
+  //
+  // max velocity (rps) = min(supply voltage / kV, cruise velocity)
+  // max acceleration (rps/s) = supply voltage / kA
+  //
+  // For example,
+  // kV = 0.03 at 12V -> max velocity = 400 rps
+  // kA = 0.04 at 12V -> max acceleration = 300 rps/s
+  //
+  // SMALLER VALUES REPRESENT HIGHER MAX VELOCITY / ACCELERATION
+  private static final double __kDeployVExpo = 12.0 / (5.0 * kDeployConversionFactor); // 5 in/s
+  private static final double __kDeployAExpo = __kDeployVExpo * 0.2; // 200ms to max velocity
 
   public Intake(CANBus canbus) {
     rollerMotor =
@@ -116,29 +132,26 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
               config.CurrentLimits.StatorCurrentLimitEnable = true;
               config.MotorOutput.NeutralMode = NeutralModeValue.Brake;
               config.MotorOutput.ControlTimesyncFreqHz = 250;
-              config.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;
-              config.SoftwareLimitSwitch.ForwardSoftLimitThreshold =
-                  kMaxPosition * kDeployConversionFactor;
-              config.SoftwareLimitSwitch.ReverseSoftLimitEnable = true;
-              config.SoftwareLimitSwitch.ReverseSoftLimitThreshold =
-                  kMinPosition * kDeployConversionFactor;
+              // config.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;
+              // config.SoftwareLimitSwitch.ForwardSoftLimitThreshold =
+              //     kDeployMaxPosition * kDeployConversionFactor;
+              // config.SoftwareLimitSwitch.ReverseSoftLimitEnable = true;
+              // config.SoftwareLimitSwitch.ReverseSoftLimitThreshold =
+              //     kDeployMinPosition * kDeployConversionFactor;
 
               config.Slot0.kS = __kDeployHoldS;
               config.Slot0.kP = __kDeployHoldP;
               config.Slot0.kD = __kDeployHoldD;
               config.Slot0.StaticFeedforwardSign = StaticFeedforwardSignValue.UseClosedLoopSign;
 
-              config.Slot1.kS = __kDeployExtendS;
-              config.Slot1.kP = __kDeployExtendP;
-              config.Slot1.kI = __kDeployExtendI;
-              config.Slot1.kD = __kDeployExtendD;
-              config.Slot1.StaticFeedforwardSign = StaticFeedforwardSignValue.UseClosedLoopSign;
+              config.Slot1.kS = __kDeployMoveS;
+              config.Slot1.kP = __kDeployMoveP;
+              config.Slot1.kI = __kDeployMoveI;
+              config.Slot1.kD = __kDeployMoveD;
 
-              config.Slot2.kS = __kDeployRetractS;
-              config.Slot2.kP = __kDeployRetractP;
-              config.Slot2.kI = __kDeployRetractI;
-              config.Slot2.kD = __kDeployRetractD;
-              config.Slot2.StaticFeedforwardSign = StaticFeedforwardSignValue.UseClosedLoopSign;
+              // config.MotionMagic.MotionMagicCruiseVelocity = __kDeployMaxVelocity;
+              // config.MotionMagic.MotionMagicExpo_kV = __kDeployVExpo;
+              // config.MotionMagic.MotionMagicExpo_kA = __kDeployAExpo;
             });
 
     rollerControl =
@@ -147,47 +160,64 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
     deployHoldControl =
         new PositionTorqueCurrentFOC(0).withSlot(0).withUseTimesync(true).withUpdateFreqHz(0);
 
-    deployExtendControl =
+    deployMoveControl =
         new PositionTorqueCurrentFOC(0).withSlot(1).withUseTimesync(true).withUpdateFreqHz(0);
-
-    deployRetractControl =
-        new PositionTorqueCurrentFOC(0).withSlot(2).withUseTimesync(true).withUpdateFreqHz(0);
 
     // make configuration tunable (must be done after configuration is bound to the motor)
     Tunable.bind("Roller", rollerMotor);
     Tunable.bind("Deploy/Hold", deployMotor);
-    Tunable.bind1("Deploy/Extend", deployMotor);
-    Tunable.bind2("Deploy/Retract", deployMotor);
+    Tunable.bind1("Deploy/Move", deployMotor);
 
     // zero position based on the initial configuration
-    PhoenixUtil.run(
-        "Intake Deploy Zero", deployMotor.getDeviceID(), () -> deployMotor.setPosition(0));
+    deployMotor.resetPosition(0);
   }
 
   @Override
   public void periodic() {
-    ControlRequest controlRequest;
-    switch (state) {
-      case kExtending:
-        controlRequest = deployExtendControl.withPosition(deploySetpoint * kDeployConversionFactor);
-        break;
-      case kRetracting:
-        controlRequest =
-            deployRetractControl.withPosition(deploySetpoint * kDeployConversionFactor);
-        break;
-      default:
-        controlRequest = deployHoldControl.withPosition(deploySetpoint * kDeployConversionFactor);
-        break;
-    }
+    // run initialization sequence to home the hood
+    if (!initialized) {
+      deployMotor.set(-0.2);
 
-    // switch to holding pattern once the position is reached
-    if (state != State.kHolding
-        && MathUtil.isNear(deploySetpoint, getPosition(), kDeployTolerance)) {
-      deployed = state == State.kExtending;
-      state = State.kHolding;
-    }
+      // hood is zeroed against a hard stop
+      if (deployMotor.isStalled()) {
+        deployMotor.stopMotor();
+        deployMotor.resetPosition(0);
+        initialized = true;
+      }
+    } else {
+      if (state == State.kAgitating) {
+        if (getPosition() > kAgitatedPosition.get()) {
+          deployMotor.set(-0.2);
+        } else {
+          deployMotor.setControl(
+              deployHoldControl.withPosition(kAgitatedPosition.get() * kDeployConversionFactor));
+        }
+      } else {
+        ControlRequest controlRequest;
+        switch (state) {
+          case kExtending:
+          case kRetracting:
+            controlRequest =
+                deployMoveControl.withPosition(deploySetpoint * kDeployConversionFactor);
+            break;
 
-    deployMotor.setControl(controlRequest);
+          default:
+            controlRequest =
+                deployHoldControl.withPosition(deploySetpoint * kDeployConversionFactor);
+            break;
+        }
+
+        // switch to holding pattern once the position is reached
+        if (state != State.kHolding
+            && state != State.kAgitating
+            && MathUtil.isNear(deploySetpoint, getPosition(), kDeployTolerance)) {
+          deployed = state == State.kExtending;
+          state = State.kHolding;
+        }
+
+        deployMotor.setControl(controlRequest);
+      }
+    }
 
     if (enabled) {
       rollerSetpoint = kRollerVelocity.get();
@@ -197,6 +227,11 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
     } else {
       rollerMotor.stopMotor();
     }
+  }
+
+  @Logged(name = "Initialized", importance = Importance.CRITICAL)
+  public boolean isInitialized() {
+    return initialized;
   }
 
   @Logged(name = "Deployed", importance = Importance.CRITICAL)
@@ -231,6 +266,17 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
     return runOnce(() -> enabled = true).withName("IntakeEnable");
   }
 
+  /** Agitates the intake. */
+  public Command agitate() {
+    return runEnd(
+            () -> state = State.kAgitating,
+            () -> {
+              state = State.kExtending;
+              deploySetpoint = kExtendedPosition.get();
+            })
+        .withName("IntakeAgitate");
+  }
+
   /** Extends the intake. */
   public Command extend() {
     return runOnce(
@@ -260,12 +306,20 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
   /** Runs self-check. */
   public Command selfCheck() {
     return Commands.sequence(
-        Commands.print("Intake self-check started"), Commands.print("Intake self-check completed"));
+        Commands.print("Intake self-check started"),
+        Commands.waitUntil(this::isInitialized),
+        Commands.print("Intake initialized"),
+        extend(),
+        Commands.waitTime(Seconds.of(2)),
+        retract(),
+        Commands.waitTime(Seconds.of(1)),
+        Commands.print("Intake self-check completed"));
   }
 
   // spotless:off
   private static Tunable.DoubleValue kRollerVelocity = Tunable.value("Roller/Velocity", __kRollerVelocity);
   private static Tunable.DoubleValue kExtendedPosition = Tunable.value("Deploy/Extended", __kExtendedPosition);
   private static Tunable.DoubleValue kRetractedPosition = Tunable.value("Deploy/Retracted", __kRetractedPosition);
+  private static Tunable.DoubleValue kAgitatedPosition = Tunable.value("Deploy/Agitated", __kAgitatedPosition);
   // spotless:on
 }

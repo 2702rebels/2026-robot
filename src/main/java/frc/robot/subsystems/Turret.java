@@ -95,8 +95,8 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
   //    make sure the cord is in a neutral position and not wrapped around
   // 2. read the encoder values in the AdvantageScope and set these offsets
   //    to the corresponding sign-inverted values
-  private static final Angle kEncoder1Offset = Degrees.of(-132.17);
-  private static final Angle kEncoder2Offset = Degrees.of(-197.43);
+  private static final Angle kEncoder1Offset = Degrees.of(-69.59);
+  private static final Angle kEncoder2Offset = Degrees.of(-3.17);
 
   // min/max safe CRT range: these are dependent on the gear geometry
   // and do NOT represent the safe range of motion
@@ -126,7 +126,7 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
   // kA = 0.04 at 12V -> max acceleration = 300 rps/s
   //
   // SMALLER VALUES REPRESENT HIGHER MAX VELOCITY / ACCELERATION
-  private static final double __kVExpo = 12.0 / (2.0 * kConversionFactor); // 1 rps
+  private static final double __kVExpo = 12.0 / (2.0 * kConversionFactor); // 2 rps
   private static final double __kAExpo = __kVExpo * 0.2; // 200ms to max velocity
 
   /** Convert turret angular position to motor position in rotations. */
