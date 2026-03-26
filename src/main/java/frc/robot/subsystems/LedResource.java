@@ -19,6 +19,7 @@ import java.util.Map;
 public class LedResource extends SubsystemBase {
   private final AddressableLED leds;
   private final AddressableLEDBuffer buffer;
+  private final AddressableLEDBuffer bufferOutput;
 
   private final AddressableLEDBufferView[] segments =
       new AddressableLEDBufferView[Constants.LedConstants.kSegments.length];
@@ -31,42 +32,39 @@ public class LedResource extends SubsystemBase {
     return index == 0 || index == (segments.length / 2) || index == segments.length - 1;
   }
 
-  private AddressableLEDBuffer convertToFakeRGB(AddressableLEDBuffer buffer) {
-    AddressableLEDBuffer output = new AddressableLEDBuffer((buffer.getLength() * 4 + 2) / 3);
+  private void translateToRGBW(AddressableLEDBuffer from, AddressableLEDBuffer to) {
     int outIndex = 0;
-    for (int i = 0; i < buffer.getLength(); i += 3) {
-      int r0 = buffer.getRed(i), g0 = buffer.getGreen(i), b0 = buffer.getBlue(i), w0 = 0;
+    for (int i = 0; i < from.getLength(); i += 3) {
+      int r0 = from.getRed(i), g0 = from.getGreen(i), b0 = from.getBlue(i), w0 = 0;
 
       int r1 = 0, g1 = 0, b1 = 0, w1 = 0;
-      if (i + 1 < buffer.getLength()) {
-        r1 = buffer.getRed(i + 1);
-        g1 = buffer.getGreen(i + 1);
-        b1 = buffer.getBlue(i + 1);
+      if (i + 1 < from.getLength()) {
+        r1 = from.getRed(i + 1);
+        g1 = from.getGreen(i + 1);
+        b1 = from.getBlue(i + 1);
       }
 
       int r2 = 0, g2 = 0, b2 = 0, w2 = 0;
-      if (i + 2 < buffer.getLength()) {
-        r2 = buffer.getRed(i + 2);
-        g2 = buffer.getGreen(i + 2);
-        b2 = buffer.getBlue(i + 2);
+      if (i + 2 < from.getLength()) {
+        r2 = from.getRed(i + 2);
+        g2 = from.getGreen(i + 2);
+        b2 = from.getBlue(i + 2);
       }
 
-      // output.setRGB(outIndex++, r0, g0, b0);
-      // output.setRGB(outIndex++, w0, r1, g1);
-      // output.setRGB(outIndex++, b1, w1, r2);
-      // output.setRGB(outIndex++, g2, b2, w2);
-
-      output.setRGB(outIndex++, r0, g0, b0);
-      output.setRGB(outIndex++, g1, w0, r1);
-      output.setRGB(outIndex++, w1, b1, g2);
-      output.setRGB(outIndex++, b2, r2, w2);
+      to.setRGB(outIndex++, r0, g0, b0);
+      to.setRGB(outIndex++, g1, w0, r1);
+      to.setRGB(outIndex++, w1, b1, g2);
+      to.setRGB(outIndex++, b2, r2, w2);
     }
-    return output;
   }
 
   public LedResource(int port) {
     leds = new AddressableLED(port);
     buffer = new AddressableLEDBuffer(Constants.LedConstants.kLength);
+
+    // we are using RGBW LED strip
+    bufferOutput = new AddressableLEDBuffer((buffer.getLength() * 4 + 2) / 3);
+
     leds.setLength((buffer.getLength() * 4 + 2) / 3);
 
     // LED strip is arranged into segments as follows,
@@ -91,7 +89,8 @@ public class LedResource extends SubsystemBase {
       offset += length;
     }
 
-    leds.setData(convertToFakeRGB(buffer));
+    translateToRGBW(buffer, bufferOutput);
+    leds.setData(bufferOutput);
     leds.start();
   }
 
@@ -118,7 +117,8 @@ public class LedResource extends SubsystemBase {
       }
     }
 
-    leds.setData(convertToFakeRGB(buffer));
+    translateToRGBW(buffer, bufferOutput);
+    leds.setData(bufferOutput);
   }
 
   // mask used with a sweep pattern

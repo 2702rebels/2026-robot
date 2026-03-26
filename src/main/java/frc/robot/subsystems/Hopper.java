@@ -55,7 +55,8 @@ public final class Hopper extends SubsystemBase implements EnergyReporter {
   private static final double kSpindexerConversionFactor = (36.0 / 14.0) * (72.0 / 24.0);
   private static final double kFeedConversionFactor = 2.0;
 
-  private final BooleanSupplier stalled;
+  private final BooleanSupplier shouldReverse;
+  private boolean reversed = false;
 
   public Hopper(CANBus canbus) {
     spindexerMotor =
@@ -103,7 +104,7 @@ public final class Hopper extends SubsystemBase implements EnergyReporter {
     Tunable.bind("Feed", feedMotor);
 
     // debounce on both edges to avoid accidental triggering and give reversal time to run
-    stalled =
+    shouldReverse =
         Misc.debounce(
             () -> {
               // spindexer can still move slowly so we have to do a custom check here
@@ -125,7 +126,7 @@ public final class Hopper extends SubsystemBase implements EnergyReporter {
   public void periodic() {
     if (enabled) {
       // detect stall and reverse the motors
-      if (stalled.getAsBoolean()) {
+      if (reversed || shouldReverse.getAsBoolean()) {
         spindexerMotor.set(kReverseDutyCycle.get());
         feedMotor.set(kReverseDutyCycle.get());
       } else {
@@ -163,6 +164,11 @@ public final class Hopper extends SubsystemBase implements EnergyReporter {
   public Command enable(BooleanSupplier supplier) {
     return runEnd(() -> enabled = supplier.getAsBoolean(), () -> enabled = false)
         .withName("EnableShooterWithCondition");
+  }
+
+  public Command reverse() {
+    // DO NOT REQUIRE THIS SUBSYSTEM
+    return Commands.runEnd(() -> reversed = true, () -> reversed = false);
   }
 
   @Override

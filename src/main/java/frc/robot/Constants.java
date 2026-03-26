@@ -67,7 +67,8 @@ public final class Constants {
     public static final int MOTOR_TURRET = 36;
     public static final int MOTOR_HOPPER_SPINDEXER = 32;
     public static final int MOTOR_HOPPER_FEED = 35;
-    public static final int MOTOR_INTAKE_ROLLER = 31;
+    public static final int MOTOR_INTAKE_ROLLER_LEADER = 31;
+    public static final int MOTOR_INTAKE_ROLLER_FOLLOWER = 41;
     public static final int MOTOR_INTAKE_DEPLOY = 33;
     public static final int MOTOR_CLIMB = 34;
   }

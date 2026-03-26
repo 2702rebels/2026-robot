@@ -43,10 +43,14 @@ import java.util.function.BooleanSupplier;
 public class RobotContainer {
   private static final int kControllerDriverPort = 0;
   private static final int kButtonatorPort = 1;
+  private static final int kControllerOperatorPort = 2;
 
   private final RobotState state = RobotState.getInstance();
   private final CommandXboxController controllerDriver =
       new CommandXboxController(kControllerDriverPort);
+
+  private final CommandXboxController controllerOperator =
+      new CommandXboxController(kControllerOperatorPort);
 
   private final CommandSwerveDrivetrain drivetrain = TunerConstants.createDrivetrain();
   private final GamePhaseTracker gamePhaseTracker = new GamePhaseTracker();
@@ -88,16 +92,23 @@ public class RobotContainer {
   // button mappings
   private final Trigger resetOrientationButton = controllerDriver.start();
   private final Trigger brakeButton = controllerDriver.b();
-  private final Trigger resetButton = controllerDriver.x();
-  private final Trigger enableIntakeButton = controllerDriver.a();
-  private final Trigger shootButton = controllerDriver.rightTrigger();
-  private final Trigger parkHoodButton = controllerDriver.rightBumper();
-  private final Trigger climbButton = controllerDriver.leftBumper();
-  private final Trigger climbUpButton = controllerDriver.povUp();
-  private final Trigger climbDownButton = controllerDriver.povDown();
-  private final Trigger intakeExtend = controllerDriver.povRight();
-  private final Trigger intakeRetract = controllerDriver.povLeft();
-  private final Trigger intakeAgitate = controllerDriver.leftTrigger();
+  private final Trigger resetButton = controllerDriver.x().or(controllerOperator.x());
+  private final Trigger enableIntakeButton = controllerDriver.a().or(controllerOperator.a());
+  private final Trigger shootButton =
+      controllerDriver.rightTrigger().or(controllerOperator.rightTrigger());
+  private final Trigger parkHoodButton =
+      controllerDriver.rightBumper().or(controllerOperator.rightBumper());
+  private final Trigger climbButton =
+      controllerDriver.leftBumper().or(controllerOperator.leftBumper());
+  private final Trigger climbUpButton = controllerDriver.povUp().or(controllerOperator.povUp());
+  private final Trigger climbDownButton =
+      controllerDriver.povDown().or(controllerOperator.povDown());
+  ;
+  private final Trigger intakeExtend =
+      controllerDriver.povRight().or(controllerOperator.povRight());
+  private final Trigger intakeRetract = controllerDriver.povLeft().or(controllerOperator.povLeft());
+  private final Trigger intakeAgitate =
+      controllerDriver.leftTrigger().or(controllerOperator.leftTrigger());
   private final Trigger autoClimb = controllerDriver.y();
 
   // condition on when the robot is allowed to initiate shooting sequence
@@ -120,6 +131,11 @@ public class RobotContainer {
   private final Alert alertControllerDriverDisconnected =
       new Alert(
           "Driver controller disconnected (port " + kControllerDriverPort + ").",
+          AlertType.kWarning);
+
+  private final Alert alertControllerOperatorDisconnected =
+      new Alert(
+          "Operator controller disconnected (port " + kControllerOperatorPort + ").",
           AlertType.kWarning);
 
   private final Alert alertButtonatorDisconnected =
@@ -234,6 +250,10 @@ public class RobotContainer {
     buttonator.button(6).onTrue(auto.trenchLBump2Runs());
     buttonator.button(7).onTrue(auto.trenchRBump2Runs());
 
+    buttonator.button(10).whileTrue(intake.burp());
+
+    buttonator.button(11).whileTrue(hopper.reverse());
+
     // self-check
     buttonator.button(12).and(DriverStation::isFMSAttached).negate().onTrue(selfCheck());
   }
@@ -247,6 +267,8 @@ public class RobotContainer {
     RobotModeTriggers.teleop().onTrue(Commands.runOnce(gamePhaseTracker::startPeriod));
     RobotModeTriggers.disabled()
         .onTrue(Commands.runOnce(gamePhaseTracker::startPeriod).ignoringDisable(true));
+
+    RobotModeTriggers.teleop().and(climb::isEngaged).onTrue(climb.disengage());
 
     // auto-retract climb
     new Trigger(climb::isDisengagedButNotRetracted)
@@ -301,6 +323,9 @@ public class RobotContainer {
     // alert for disconnected controllers
     alertControllerDriverDisconnected.set(
         !DriverStation.isJoystickConnected(controllerDriver.getHID().getPort()));
+
+    alertControllerOperatorDisconnected.set(
+        !DriverStation.isJoystickConnected(controllerOperator.getHID().getPort()));
 
     alertButtonatorDisconnected.set(
         !DriverStation.isJoystickConnected(buttonator.getHID().getPort()));

@@ -12,7 +12,6 @@ import edu.wpi.first.networktables.StructPublisher;
 import edu.wpi.first.units.measure.Time;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
-import frc.robot.Constants.Deployment;
 import frc.robot.Constants.DriveConstants;
 import frc.robot.lib.BLine.FollowPath;
 import frc.robot.lib.BLine.Path;
@@ -98,6 +97,10 @@ public class AutoRoutines {
     return container.intake.agitate().withTimeout(duration).asProxy();
   }
 
+  private Command burp(Time duration) {
+    return container.intake.burp().withTimeout(duration).asProxy();
+  }
+
   private final Path trenchLBump2Runs = new Path("Trench L Bump 2 Runs");
   private final Path trenchRBump2Runs; // mirrored from [l]eft version
 
@@ -110,9 +113,9 @@ public class AutoRoutines {
     this.state = RobotState.getInstance();
 
     // enable logging [development only]
-    if (Constants.DeploymentMode == Deployment.kDevelopment) {
-      FollowPath.setPoseLoggingConsumer(pair -> logPose(pair.getFirst(), pair.getSecond()));
-    }
+    // if (Constants.DeploymentMode == Deployment.kDevelopment) {
+    //   FollowPath.setPoseLoggingConsumer(pair -> logPose(pair.getFirst(), pair.getSecond()));
+    // }
 
     // events
     FollowPath.registerEventTrigger("climb_extend", climbExtend());
@@ -122,6 +125,7 @@ public class AutoRoutines {
     FollowPath.registerEventTrigger("intake_extend", intakeExtend());
     FollowPath.registerEventTrigger("intake_retract", intakeRetract());
     FollowPath.registerEventTrigger("intake_agitate", intakeAgitate(Seconds.of(5)));
+    FollowPath.registerEventTrigger("burp", burp(Seconds.of(1)));
     FollowPath.registerEventTrigger("shoot_4", shoot(Seconds.of(4)));
     FollowPath.registerEventTrigger("shoot_5", shoot(Seconds.of(5)));
     FollowPath.registerEventTrigger("shoot_6", shoot(Seconds.of(6)));
@@ -163,14 +167,14 @@ public class AutoRoutines {
   public Command trenchLBump2RunsClimb() {
     return pathBuilder
         .build(trenchLBump2RunsClimb)
-        .withTimeout(Seconds.of(18.5))
+        .withTimeout(Seconds.of(19.6))
         .andThen(climbEngage());
   }
 
   public Command trenchRBump2RunsClimb() {
     return pathBuilder
         .build(trenchRBump2RunsClimb)
-        .withTimeout(Seconds.of(18.5))
+        .withTimeout(Seconds.of(19.6))
         .andThen(climbEngage());
   }
 
@@ -190,7 +194,7 @@ public class AutoRoutines {
 
   // tower lower (right side)
   private static final Path.Waypoint towerLowerEndpoint =
-      new Path.Waypoint(new Translation2d(1.040, 2.970), Rotation2d.fromDegrees(-90));
+      new Path.Waypoint(new Translation2d(1.08, 2.940), Rotation2d.fromDegrees(-90));
 
   private static final Path.Waypoint towerLowerApproach =
       new Path.Waypoint(
@@ -199,14 +203,17 @@ public class AutoRoutines {
 
   private static final Path.PathConstraints towerPathConstraints =
       new Path.PathConstraints()
-          .setMaxVelocityMetersPerSec(new Path.RangedConstraint(1.2, 0, 1))
-          .setMaxVelocityMetersPerSec(new Path.RangedConstraint(0.4, 1, Integer.MAX_VALUE));
+          .setMaxVelocityMetersPerSec(
+              new Path.RangedConstraint(2.0, 0, 1),
+              new Path.RangedConstraint(0.4, 1, Integer.MAX_VALUE));
 
   private static Path createTowerPath(TowerPathSide side, Pose2d pose) {
     final var intialTranslation = new Path.TranslationTarget(pose.getTranslation());
     return side == TowerPathSide.kLower
-        ? new Path(towerPathConstraints, intialTranslation, towerLowerApproach, towerLowerEndpoint)
-        : new Path(towerPathConstraints, intialTranslation, towerUpperApproach, towerUpperEndpoint);
+        ? new Path(
+            towerPathConstraints.copy(), intialTranslation, towerLowerApproach, towerLowerEndpoint)
+        : new Path(
+            towerPathConstraints.copy(), intialTranslation, towerUpperApproach, towerUpperEndpoint);
   }
 
   /** Runs automatic climbing sequence if the robot is within the alliance zone. */
@@ -228,8 +235,12 @@ public class AutoRoutines {
                   ? robotY > Field.flipY(towerY) ? TowerPathSide.kLower : TowerPathSide.kUpper
                   : robotY > towerY ? TowerPathSide.kUpper : TowerPathSide.kLower;
 
+          // flip pose before giving it to the path, since it will auto-flip entire path
           return climbExtend()
-              .andThen(pathBuilder.build(createTowerPath(side, pose)).withTimeout(Seconds.of(3)))
+              .andThen(
+                  pathBuilder
+                      .build(createTowerPath(side, Field.flip(pose)))
+                      .withTimeout(Seconds.of(3)))
               .andThen(climbEngage());
         },
         Set.of(drivetrain));

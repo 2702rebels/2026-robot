@@ -7,8 +7,10 @@ import static edu.wpi.first.units.Units.Seconds;
 
 import com.ctre.phoenix6.CANBus;
 import com.ctre.phoenix6.controls.ControlRequest;
+import com.ctre.phoenix6.controls.Follower;
 import com.ctre.phoenix6.controls.PositionTorqueCurrentFOC;
 import com.ctre.phoenix6.controls.VelocityTorqueCurrentFOC;
+import com.ctre.phoenix6.signals.MotorAlignmentValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
 import com.ctre.phoenix6.signals.StaticFeedforwardSignValue;
 import edu.wpi.first.epilogue.Logged;
@@ -20,7 +22,9 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 import frc.robot.lib.EnergyReporter;
 import frc.robot.lib.LoggedTalonFX;
+import frc.robot.lib.PhoenixUtil;
 import frc.robot.lib.Tunable;
+import java.util.function.BooleanSupplier;
 
 public final class Intake extends SubsystemBase implements EnergyReporter {
   // MAKE SURE TO UPDATE THESE VALUES AFTER TUNING
@@ -48,8 +52,11 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
   private static final double __kExtendedPosition = 11; // inches
   private static final double __kAgitatedPosition = 1; // inches
 
-  @Logged(name = "Roller", importance = Importance.CRITICAL)
-  private final LoggedTalonFX rollerMotor;
+  @Logged(name = "Roller/Leader", importance = Importance.CRITICAL)
+  private final LoggedTalonFX rollerMotorLeader;
+
+  @Logged(name = "Roller/Follower", importance = Importance.CRITICAL)
+  private final LoggedTalonFX rollerMotorFollower;
 
   @Logged(name = "Deploy", importance = Importance.CRITICAL)
   private final LoggedTalonFX deployMotor;
@@ -60,6 +67,7 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
   @Logged(name = "Setpoint/Roller", importance = Importance.DEBUG)
   private double rollerSetpoint = 0;
 
+  private final Follower followerControl;
   private final VelocityTorqueCurrentFOC rollerControl;
   private final PositionTorqueCurrentFOC deployHoldControl;
   private final PositionTorqueCurrentFOC deployMoveControl;
@@ -81,6 +89,10 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
   public State state = State.kHolding;
 
   private boolean deployed;
+  private boolean reversed;
+
+  // debounced stalling condition on deploy motor
+  private BooleanSupplier deployMotorStalled;
 
   private static final double kRollerStatorCurrentLimit = 80.0;
   private static final double kDeployStatorCurrentLimit = 40.0;
@@ -89,11 +101,12 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
   private static final double kDeployConversionFactor = 10.0 / (1.6 * Math.PI);
   private static final double kRollerTolerance = 100.0; // RPMs
   private static final double kDeployTolerance = 0.5; // inches
+  private static final double kRollerMinPosition = 2.0; // inches
 
   public Intake(CANBus canbus) {
-    rollerMotor =
+    rollerMotorLeader =
         new LoggedTalonFX(
-            Constants.CanivoreID.MOTOR_INTAKE_ROLLER,
+            Constants.CanivoreID.MOTOR_INTAKE_ROLLER_LEADER,
             canbus,
             (config) -> {
               config.CurrentLimits.StatorCurrentLimit = kRollerStatorCurrentLimit;
@@ -105,6 +118,17 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
               config.Slot0.kV = __kRollerV;
               config.Slot0.kP = __kRollerP;
               config.Slot0.kD = __kRollerD;
+            });
+
+    rollerMotorFollower =
+        new LoggedTalonFX(
+            Constants.CanivoreID.MOTOR_INTAKE_ROLLER_FOLLOWER,
+            canbus,
+            (config) -> {
+              config.CurrentLimits.StatorCurrentLimit = kRollerStatorCurrentLimit;
+              config.CurrentLimits.StatorCurrentLimitEnable = true;
+              config.MotorOutput.NeutralMode = NeutralModeValue.Coast;
+              config.MotorOutput.ControlTimesyncFreqHz = 250;
             });
 
     deployMotor =
@@ -128,6 +152,16 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
               config.Slot1.kD = __kDeployMoveD;
             });
 
+    // follow leader's output (inverted)
+    followerControl =
+        new Follower(rollerMotorLeader.getDeviceID(), MotorAlignmentValue.Opposed)
+            .withUpdateFreqHz(250);
+
+    PhoenixUtil.run(
+        "Roller Follow Leader",
+        rollerMotorFollower.getDeviceID(),
+        () -> rollerMotorFollower.setControl(followerControl));
+
     rollerControl =
         new VelocityTorqueCurrentFOC(0).withSlot(0).withUseTimesync(true).withUpdateFreqHz(0);
 
@@ -138,29 +172,34 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
         new PositionTorqueCurrentFOC(0).withSlot(1).withUseTimesync(true).withUpdateFreqHz(0);
 
     // make configuration tunable (must be done after configuration is bound to the motor)
-    Tunable.bind("Roller", rollerMotor);
+    Tunable.bind("Roller", rollerMotorLeader);
     Tunable.bind("Deploy/Hold", deployMotor);
     Tunable.bind1("Deploy/Move", deployMotor);
 
     // zero position based on the initial configuration
     deployMotor.resetPosition(0);
+
+    // debounce to give the intake time to fully zero itself
+    deployMotorStalled = () -> deployMotor.isStalled(30);
   }
 
   @Override
   public void periodic() {
+    final var position = getPosition();
+
     // run initialization sequence to home the intake
     if (!initialized) {
       deployMotor.set(-0.2);
 
       // intake is zeroed against a hard stop
-      if (deployMotor.isStalled()) {
+      if (deployMotorStalled.getAsBoolean()) {
         deployMotor.stopMotor();
         deployMotor.resetPosition(0);
         initialized = true;
       }
     } else {
       if (state == State.kAgitating) {
-        if (getPosition() > kAgitatedPosition.get()) {
+        if (position > kAgitatedPosition.get()) {
           deployMotor.set(-0.2);
         } else {
           deployMotor.setControl(
@@ -183,22 +222,32 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
 
         // switch to holding pattern once the position is reached
         if (state != State.kHolding
-            && MathUtil.isNear(deploySetpoint, getPosition(), kDeployTolerance)) {
+            && MathUtil.isNear(deploySetpoint, position, kDeployTolerance)) {
           deployed = state == State.kExtending;
           state = State.kHolding;
         }
 
         deployMotor.setControl(controlRequest);
       }
+
+      // reset zero when intake reading negative position
+      if (position < 0) {
+        deployMotor.resetPosition(0);
+      }
     }
 
-    if (enabled) {
-      rollerSetpoint = kRollerVelocity.get();
-      rollerMotor.setControl(
-          rollerControl.withVelocity(
-              RotationsPerSecond.convertFrom(rollerSetpoint, RPM) * kRollerConversionFactor));
+    if (reversed) {
+      rollerMotorLeader.set(-0.2);
     } else {
-      rollerMotor.stopMotor();
+      // pause intaking when intake is almost all the way in
+      if (enabled && position >= kRollerMinPosition) {
+        rollerSetpoint = kRollerVelocity.get();
+        rollerMotorLeader.setControl(
+            rollerControl.withVelocity(
+                RotationsPerSecond.convertFrom(rollerSetpoint, RPM) * kRollerConversionFactor));
+      } else {
+        rollerMotorLeader.stopMotor();
+      }
     }
   }
 
@@ -221,7 +270,7 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
 
   @Logged(name = "Velocity", importance = Importance.CRITICAL)
   public double getVelocity() {
-    return rollerMotor.getMotorVelocity().in(RPM) / kRollerConversionFactor;
+    return rollerMotorLeader.getMotorVelocity().in(RPM) / kRollerConversionFactor;
   }
 
   @Logged(name = "Position", importance = Importance.CRITICAL)
@@ -273,7 +322,13 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
   @Override
   public double getTotalSupplyCurrent() {
     return Math.abs(deployMotor.getSupplyCurrentAmps())
-        + Math.abs(rollerMotor.getSupplyCurrentAmps());
+        + Math.abs(rollerMotorLeader.getSupplyCurrentAmps())
+        + +Math.abs(rollerMotorFollower.getSupplyCurrentAmps());
+  }
+
+  public Command burp() {
+    // DO NOT REQUIRE THIS SUBSYSTEM
+    return Commands.runEnd(() -> reversed = true, () -> reversed = false);
   }
 
   /** Runs self-check. */
