@@ -47,6 +47,7 @@ public class RobotContainer {
   private final RobotState state = RobotState.getInstance();
   private final CommandXboxController controllerDriver =
       new CommandXboxController(kControllerDriverPort);
+
   private final CommandSwerveDrivetrain drivetrain = TunerConstants.createDrivetrain();
   private final GamePhaseTracker gamePhaseTracker = new GamePhaseTracker();
 
@@ -109,6 +110,8 @@ public class RobotContainer {
   private final Alert alertMissingAutoWinAlliance =
       new Alert("AUTO WINNER NOT SET!", AlertType.kError);
 
+  private final Alert alertNoAutoRoutine = new Alert("NO AUTO ROUTINE SELECTED!", AlertType.kError);
+
   private final Alert alertLowBattery =
       new Alert(
           "Battery voltage is low, turn off the robot and replace the battery!",
@@ -155,12 +158,14 @@ public class RobotContainer {
     energyTracker.register("Shooter", shooter);
     energyTracker.register("Climb", climb);
 
-    // auto chooser
-    autoChooser.setDefaultOption("None", Commands.none());
-    autoChooser.addOption("Left 2-Run Trench Over Bump", auto.trenchLBump2Runs());
-    autoChooser.addOption("Right 2-Run Trench Over Bump", auto.trenchRBump2Runs());
+    // auto routine chooser
+    autoChooser.setDefaultOption("None", Commands.none().withName("None"));
+    autoChooser.addOption("Left 2 Sprints Over Bump", auto.trenchLBump2Runs());
+    autoChooser.addOption("Right 2 Sprints Over Bump", auto.trenchRBump2Runs());
+    autoChooser.addOption("Left 2 Sprints Over Bump and Climb", auto.trenchLBump2RunsClimb());
+    autoChooser.addOption("Right 2 Sprints Over Bump and Climb", auto.trenchRBump2RunsClimb());
 
-    SmartDashboard.putData(autoChooser);
+    SmartDashboard.putData("Auto Routine", autoChooser);
   }
 
   /** Smooth out control input by squaring. */
@@ -217,9 +222,9 @@ public class RobotContainer {
 
     intakeExtend.onTrue(intake.extend());
     intakeRetract.onTrue(intake.retract());
-    intakeAgitate.whileTrue(intake.agitate());
+    intakeAgitate.and(intake::isDeployed).whileTrue(intake.agitate());
 
-    autoClimb.onTrue(auto.climb());
+    autoClimb.onTrue(auto.climb().until(resetButton));
 
     buttonator.button(1).onTrue(state.setPassingToDefault());
     buttonator.button(2).onTrue(state.setPassingToTrenchAuto());
@@ -229,14 +234,8 @@ public class RobotContainer {
     buttonator.button(6).onTrue(auto.trenchLBump2Runs());
     buttonator.button(7).onTrue(auto.trenchRBump2Runs());
 
-    // buttonator.button(7).onTrue(auto.test1());
-    // buttonator.button(8).onTrue(auto.test2());
-    // buttonator.button(9).onTrue(auto.test3());
-    buttonator.button(10).onTrue(auto.climbLeft());
-    buttonator.button(11).onTrue(auto.climbRight());
-
     // self-check
-    buttonator.button(12).onTrue(selfCheck());
+    buttonator.button(12).and(DriverStation::isFMSAttached).negate().onTrue(selfCheck());
   }
 
   /** Use this method to configure trigger bindings. */
@@ -275,6 +274,7 @@ public class RobotContainer {
     new Trigger(
             () ->
                 DriverStation.isTeleopEnabled()
+                    && DriverStation.isFMSAttached()
                     && !state.isHubActive()
                     && state.getGamePhaseRemainingTime().in(Seconds) < 5)
         .onTrue(rumble(Milliseconds.of(500)));
@@ -304,6 +304,9 @@ public class RobotContainer {
 
     alertButtonatorDisconnected.set(
         !DriverStation.isJoystickConnected(buttonator.getHID().getPort()));
+
+    // no auto routine selected
+    alertNoAutoRoutine.set(getAutonomousCommand().getName() == "None");
   }
 
   public Command getAutonomousCommand() {

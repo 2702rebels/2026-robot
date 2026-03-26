@@ -78,10 +78,31 @@ public class AutoRoutines {
     return container.climb.engage().asProxy();
   }
 
-  private static final Path climbL = new Path("Climb L");
-  private static final Path climbR = new Path("Climb R");
-  private static final Path trenchLBump2Runs = new Path("Trench L Bump 2 Runs");
-  private static final Path trenchRBump2Runs = new Path("Trench L Bump 2 Runs");
+  private Command intakeStart() {
+    return container.intake.enable().asProxy();
+  }
+
+  private Command intakeStop() {
+    return container.intake.disable().asProxy();
+  }
+
+  private Command intakeExtend() {
+    return container.intake.extend().asProxy();
+  }
+
+  private Command intakeRetract() {
+    return container.intake.retract().asProxy();
+  }
+
+  private Command intakeAgitate(Time duration) {
+    return container.intake.agitate().withTimeout(duration).asProxy();
+  }
+
+  private final Path trenchLBump2Runs = new Path("Trench L Bump 2 Runs");
+  private final Path trenchRBump2Runs; // mirrored from [l]eft version
+
+  private final Path trenchLBump2RunsClimb = new Path("Trench L Bump 2 Runs Climb");
+  private final Path trenchRBump2RunsClimb = new Path("Trench R Bump 2 Runs Climb");
 
   public AutoRoutines(RobotContainer container, CommandSwerveDrivetrain drivetrain) {
     this.container = container;
@@ -96,18 +117,18 @@ public class AutoRoutines {
     // events
     FollowPath.registerEventTrigger("climb_extend", climbExtend());
     FollowPath.registerEventTrigger("climb_engage", climbEngage());
-    FollowPath.registerEventTrigger("intake_start", container.intake.enable().asProxy());
-    FollowPath.registerEventTrigger("intake_stop", container.intake.disable().asProxy());
-    FollowPath.registerEventTrigger("intake_extend", container.intake.extend().asProxy());
-    FollowPath.registerEventTrigger(
-        "intake_agitate", container.intake.agitate().withTimeout(5).asProxy());
+    FollowPath.registerEventTrigger("intake_start", intakeStart());
+    FollowPath.registerEventTrigger("intake_stop", intakeStop());
+    FollowPath.registerEventTrigger("intake_extend", intakeExtend());
+    FollowPath.registerEventTrigger("intake_retract", intakeRetract());
+    FollowPath.registerEventTrigger("intake_agitate", intakeAgitate(Seconds.of(5)));
     FollowPath.registerEventTrigger("shoot_4", shoot(Seconds.of(4)));
     FollowPath.registerEventTrigger("shoot_5", shoot(Seconds.of(5)));
     FollowPath.registerEventTrigger("shoot_6", shoot(Seconds.of(6)));
 
     Path.setDefaultGlobalConstraints(
         new Path.DefaultGlobalConstraints(
-            3.5, // maximum velocity (m/s)
+            3.0, // maximum velocity (m/s)
             6.0, // maximum acceleration (m/s^2)
             540, // max angular velocity (deg/s)
             1080, // max angular acceleration (deg/s^2)
@@ -127,19 +148,8 @@ public class AutoRoutines {
                 crossTrackController)
             .withDefaultShouldFlip();
 
+    trenchRBump2Runs = trenchLBump2Runs.copy();
     trenchRBump2Runs.mirror();
-  }
-
-  private static final Path sweepTrenchL = new Path("Sweep Trench L");
-  private static final Path sweepTrenchLOverBump = new Path("Sweep Trench L over Bump");
-  private static final Path trenchLRArcStation = new Path("Trench LR Arc Station");
-
-  public Command climbLeft() {
-    return pathBuilder.build(climbL).withTimeout(Seconds.of(3)).andThen(climbEngage());
-  }
-
-  public Command climbRight() {
-    return pathBuilder.build(climbR).withTimeout(Seconds.of(3)).andThen(climbEngage());
   }
 
   public Command trenchLBump2Runs() {
@@ -150,55 +160,54 @@ public class AutoRoutines {
     return pathBuilder.build(trenchRBump2Runs);
   }
 
-  public Command test1() {
-    return pathBuilder.build(sweepTrenchLOverBump);
+  public Command trenchLBump2RunsClimb() {
+    return pathBuilder
+        .build(trenchLBump2RunsClimb)
+        .withTimeout(Seconds.of(18.5))
+        .andThen(climbEngage());
   }
 
-  public Command test2() {
-    return pathBuilder.build(sweepTrenchL).andThen(shoot(Seconds.of(4)));
+  public Command trenchRBump2RunsClimb() {
+    return pathBuilder
+        .build(trenchRBump2RunsClimb)
+        .withTimeout(Seconds.of(18.5))
+        .andThen(climbEngage());
   }
 
-  public Command test3() {
-    return pathBuilder.build(trenchLRArcStation);
-  }
-
-  private static Path createTowerPath(Path.PathElement... pathElements) {
-    final var constraints =
-        new Path.PathConstraints()
-            .setMaxVelocityMetersPerSec(new Path.RangedConstraint(1.2, 0, 1))
-            .setMaxVelocityMetersPerSec(new Path.RangedConstraint(0.4, 1, Integer.MAX_VALUE));
-
-    return new Path(constraints, pathElements);
+  private static enum TowerPathSide {
+    kLower,
+    kUpper,
   }
 
   // tower upper (left side)
   private static final Path.Waypoint towerUpperEndpoint =
       new Path.Waypoint(new Translation2d(1.090, 4.530), Rotation2d.fromDegrees(90));
 
-  private static final Path.TranslationTarget towerUpperApproach =
-      new Path.TranslationTarget(
-          towerUpperEndpoint.translationTarget().translation().minus(new Translation2d(0.2, 0)));
-
-  private static final Path.TranslationTarget towerUpperInitial =
-      new Path.TranslationTarget(
-          towerUpperApproach.translation().plus(new Translation2d(0.2, 0.8)));
-
-  private static final Path towerUpper =
-      createTowerPath(towerUpperInitial, towerUpperApproach, towerUpperEndpoint);
+  private static final Path.Waypoint towerUpperApproach =
+      new Path.Waypoint(
+          towerUpperEndpoint.translationTarget().translation().minus(new Translation2d(0.2, 0)),
+          Rotation2d.fromDegrees(90));
 
   // tower lower (right side)
   private static final Path.Waypoint towerLowerEndpoint =
       new Path.Waypoint(new Translation2d(1.040, 2.970), Rotation2d.fromDegrees(-90));
 
-  private static final Path.TranslationTarget towerLowerApproach =
-      new Path.TranslationTarget(
-          towerLowerEndpoint.translationTarget().translation().plus(new Translation2d(0.2, 0)));
+  private static final Path.Waypoint towerLowerApproach =
+      new Path.Waypoint(
+          towerLowerEndpoint.translationTarget().translation().plus(new Translation2d(0.2, 0)),
+          Rotation2d.fromDegrees(-90));
 
-  private static final Path.TranslationTarget towerLowerInitial =
-      new Path.TranslationTarget(towerLowerApproach.translation().minus(new Translation2d(0, 0.8)));
+  private static final Path.PathConstraints towerPathConstraints =
+      new Path.PathConstraints()
+          .setMaxVelocityMetersPerSec(new Path.RangedConstraint(1.2, 0, 1))
+          .setMaxVelocityMetersPerSec(new Path.RangedConstraint(0.4, 1, Integer.MAX_VALUE));
 
-  private static final Path towerLower =
-      createTowerPath(towerLowerInitial, towerLowerApproach, towerLowerEndpoint);
+  private static Path createTowerPath(TowerPathSide side, Pose2d pose) {
+    final var intialTranslation = new Path.TranslationTarget(pose.getTranslation());
+    return side == TowerPathSide.kLower
+        ? new Path(towerPathConstraints, intialTranslation, towerLowerApproach, towerLowerEndpoint)
+        : new Path(towerPathConstraints, intialTranslation, towerUpperApproach, towerUpperEndpoint);
+  }
 
   /** Runs automatic climbing sequence if the robot is within the alliance zone. */
   public Command climb() {
@@ -214,13 +223,13 @@ public class AutoRoutines {
           final var towerY = Field.kTowerCenter.getY();
           final var robotY = pose.getY();
 
-          final var path =
+          final var side =
               Field.shouldFlip()
-                  ? robotY > Field.flipY(towerY) ? towerLower : towerUpper
-                  : robotY > towerY ? towerUpper : towerLower;
+                  ? robotY > Field.flipY(towerY) ? TowerPathSide.kLower : TowerPathSide.kUpper
+                  : robotY > towerY ? TowerPathSide.kUpper : TowerPathSide.kLower;
 
           return climbExtend()
-              .andThen(pathBuilder.build(path).withTimeout(Seconds.of(3)))
+              .andThen(pathBuilder.build(createTowerPath(side, pose)).withTimeout(Seconds.of(3)))
               .andThen(climbEngage());
         },
         Set.of(drivetrain));

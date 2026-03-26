@@ -89,22 +89,6 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
   private static final double kDeployConversionFactor = 10.0 / (1.6 * Math.PI);
   private static final double kRollerTolerance = 100.0; // RPMs
   private static final double kDeployTolerance = 0.5; // inches
-  private static final double kDeployMaxPosition = 11.5; // inches
-  private static final double kDeployMinPosition = 0;
-
-  // Expo kV and kA characterize the profile not gains
-  // https://v6.docs.ctr-electronics.com/en/latest/docs/api-reference/device-specific/talonfx/motion-magic.html#motion-magic-expo
-  //
-  // max velocity (rps) = min(supply voltage / kV, cruise velocity)
-  // max acceleration (rps/s) = supply voltage / kA
-  //
-  // For example,
-  // kV = 0.03 at 12V -> max velocity = 400 rps
-  // kA = 0.04 at 12V -> max acceleration = 300 rps/s
-  //
-  // SMALLER VALUES REPRESENT HIGHER MAX VELOCITY / ACCELERATION
-  private static final double __kDeployVExpo = 12.0 / (5.0 * kDeployConversionFactor); // 5 in/s
-  private static final double __kDeployAExpo = __kDeployVExpo * 0.2; // 200ms to max velocity
 
   public Intake(CANBus canbus) {
     rollerMotor =
@@ -132,12 +116,6 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
               config.CurrentLimits.StatorCurrentLimitEnable = true;
               config.MotorOutput.NeutralMode = NeutralModeValue.Brake;
               config.MotorOutput.ControlTimesyncFreqHz = 250;
-              // config.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;
-              // config.SoftwareLimitSwitch.ForwardSoftLimitThreshold =
-              //     kDeployMaxPosition * kDeployConversionFactor;
-              // config.SoftwareLimitSwitch.ReverseSoftLimitEnable = true;
-              // config.SoftwareLimitSwitch.ReverseSoftLimitThreshold =
-              //     kDeployMinPosition * kDeployConversionFactor;
 
               config.Slot0.kS = __kDeployHoldS;
               config.Slot0.kP = __kDeployHoldP;
@@ -148,10 +126,6 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
               config.Slot1.kP = __kDeployMoveP;
               config.Slot1.kI = __kDeployMoveI;
               config.Slot1.kD = __kDeployMoveD;
-
-              // config.MotionMagic.MotionMagicCruiseVelocity = __kDeployMaxVelocity;
-              // config.MotionMagic.MotionMagicExpo_kV = __kDeployVExpo;
-              // config.MotionMagic.MotionMagicExpo_kA = __kDeployAExpo;
             });
 
     rollerControl =
@@ -174,11 +148,11 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
 
   @Override
   public void periodic() {
-    // run initialization sequence to home the hood
+    // run initialization sequence to home the intake
     if (!initialized) {
       deployMotor.set(-0.2);
 
-      // hood is zeroed against a hard stop
+      // intake is zeroed against a hard stop
       if (deployMotor.isStalled()) {
         deployMotor.stopMotor();
         deployMotor.resetPosition(0);
@@ -209,7 +183,6 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
 
         // switch to holding pattern once the position is reached
         if (state != State.kHolding
-            && state != State.kAgitating
             && MathUtil.isNear(deploySetpoint, getPosition(), kDeployTolerance)) {
           deployed = state == State.kExtending;
           state = State.kHolding;
@@ -311,6 +284,7 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
         Commands.print("Intake initialized"),
         extend(),
         Commands.waitTime(Seconds.of(2)),
+        agitate().withTimeout(Seconds.of(3)),
         retract(),
         Commands.waitTime(Seconds.of(1)),
         Commands.print("Intake self-check completed"));

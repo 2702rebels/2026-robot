@@ -238,6 +238,8 @@ public final class Climb extends SubsystemBase implements EnergyReporter {
   public Command disengage() {
     return runOnce(
             () -> {
+              // offset by 0.5" to reduce the chance of unspooling
+              // when the hook sticks to the climb rung
               setpoint = Inches.of(kPositionExtended.get() - 0.5);
             })
         .withName("ClimbDisengage")

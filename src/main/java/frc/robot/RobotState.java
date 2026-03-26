@@ -263,7 +263,7 @@ public class RobotState {
   @Logged(name = "HasRecentVisionPose", importance = Importance.CRITICAL)
   public boolean hasRecentVisionPose() {
     final var age = getVisionPoseAge();
-    return age >= 0 && age < 120;
+    return age >= 0 && age <= kVisionCutoff / 1000.0;
   }
 
   /** Roll angle */
