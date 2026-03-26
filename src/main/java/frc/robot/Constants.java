@@ -22,7 +22,7 @@ public final class Constants {
    * Target deployment mode. This should be set to kCompetition when compiling code for competition
    * use to reduce the performance impact of the telemetry.
    */
-  public static final Deployment DeploymentMode = Deployment.kDevelopment;
+  public static final Deployment DeploymentMode = Deployment.kCompetition;
 
   public static final class Settings {
     /** RIO Logging */
