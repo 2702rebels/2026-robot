@@ -55,7 +55,7 @@ public final class Hopper extends SubsystemBase implements EnergyReporter {
   private static final double kSpindexerConversionFactor = (36.0 / 14.0) * (72.0 / 24.0);
   private static final double kFeedConversionFactor = 2.0;
 
-  private final BooleanSupplier shouldReverse;
+  private final BooleanSupplier stalled;
   private boolean reversed = false;
 
   public Hopper(CANBus canbus) {
@@ -104,7 +104,7 @@ public final class Hopper extends SubsystemBase implements EnergyReporter {
     Tunable.bind("Feed", feedMotor);
 
     // debounce on both edges to avoid accidental triggering and give reversal time to run
-    shouldReverse =
+    stalled =
         Misc.debounce(
             () -> {
               // spindexer can still move slowly so we have to do a custom check here
@@ -126,7 +126,7 @@ public final class Hopper extends SubsystemBase implements EnergyReporter {
   public void periodic() {
     if (enabled) {
       // detect stall and reverse the motors
-      if (reversed || shouldReverse.getAsBoolean()) {
+      if (reversed || stalled.getAsBoolean()) {
         spindexerMotor.set(kReverseDutyCycle.get());
         feedMotor.set(kReverseDutyCycle.get());
       } else {
@@ -157,18 +157,19 @@ public final class Hopper extends SubsystemBase implements EnergyReporter {
 
   /** Enables the subsystem. */
   public Command enable() {
-    return runEnd(() -> enabled = true, () -> enabled = false).withName("EnableShooter");
+    return runEnd(() -> enabled = true, () -> enabled = false).withName("HopperEnable");
   }
 
   /** Enables the subsystem. */
   public Command enable(BooleanSupplier supplier) {
     return runEnd(() -> enabled = supplier.getAsBoolean(), () -> enabled = false)
-        .withName("EnableShooterWithCondition");
+        .withName("HopperEnableWithCondition");
   }
 
+  /** Reverses the spindexer/feeder. */
   public Command reverse() {
     // DO NOT REQUIRE THIS SUBSYSTEM
-    return Commands.runEnd(() -> reversed = true, () -> reversed = false);
+    return Commands.runEnd(() -> reversed = true, () -> reversed = false).withName("HopperReverse");
   }
 
   @Override
@@ -180,9 +181,10 @@ public final class Hopper extends SubsystemBase implements EnergyReporter {
   /** Runs self-check. */
   public Command selfCheck() {
     return Commands.sequence(
-        Commands.print("Hopper self-check started"),
-        enable().withTimeout(Seconds.of(5)),
-        Commands.print("Hopper self-check completed"));
+            Commands.print("Hopper self-check started"),
+            enable().withTimeout(Seconds.of(5)),
+            Commands.print("Hopper self-check completed"))
+        .withName("HopperSelfCheck");
   }
 
   // spotless:off

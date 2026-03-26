@@ -52,8 +52,8 @@ public class RobotState {
   public static enum PassingPoint {
     kDefault,
     kTrenchAuto,
-    kTrenchUpper,
-    kTrenchLower,
+    kTrenchLeft,
+    kTrenchRight,
   }
 
   private static final long kVisionCutoff = 100 * 1000; // microseconds
@@ -252,7 +252,7 @@ public class RobotState {
   }
 
   /** Age (milliseconds) of the most recent vision pose */
-  @Logged(name = "VisionPoseAge", importance = Importance.DEBUG)
+  @Logged(name = "VisionPoseAge", importance = Importance.CRITICAL)
   public double getVisionPoseAge() {
     return visionPoseTimestamp > 0
         ? (RobotController.getTime() - visionPoseTimestamp) / 1000.0
@@ -592,12 +592,12 @@ public class RobotState {
     return Commands.runOnce(() -> setPassingTarget(PassingPoint.kTrenchAuto));
   }
 
-  public Command setPassingToTrenchUpper() {
-    return Commands.runOnce(() -> setPassingTarget(PassingPoint.kTrenchUpper));
+  public Command setPassingToTrenchLeft() {
+    return Commands.runOnce(() -> setPassingTarget(PassingPoint.kTrenchLeft));
   }
 
-  public Command setPassingToTrenchLower() {
-    return Commands.runOnce(() -> setPassingTarget(PassingPoint.kTrenchLower));
+  public Command setPassingToTrenchRight() {
+    return Commands.runOnce(() -> setPassingTarget(PassingPoint.kTrenchRight));
   }
 
   /** Returns appropriate passing target based on the selection and robot pose. */
@@ -620,12 +620,12 @@ public class RobotState {
     }
 
     switch (targetPoint) {
-      case kTrenchLower:
+      case kTrenchRight:
         return new Translation2d(
             Field.fieldX.apply(Field.kStartingLineX),
             Field.fieldY.apply(Field.kTrenchWidth * 0.75));
 
-      case kTrenchUpper:
+      case kTrenchLeft:
         return new Translation2d(
             Field.fieldX.apply(Field.kStartingLineX),
             Field.fieldY.apply(Field.kFieldWidth - Field.kTrenchWidth * 0.75));

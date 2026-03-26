@@ -79,7 +79,7 @@ public class AprilTagDetector {
   }
 
   /** Returns recent latency in milliseconds. */
-  @Logged(name = "LatencyMS", importance = Importance.DEBUG)
+  @Logged(name = "LatencyMS", importance = Importance.CRITICAL)
   public double getLatency() {
     return latency.get() / 1000.0;
   }

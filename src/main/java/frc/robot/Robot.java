@@ -7,6 +7,7 @@ package frc.robot;
 import com.ctre.phoenix6.HootEpilogueBackend;
 import edu.wpi.first.epilogue.Epilogue;
 import edu.wpi.first.epilogue.Logged;
+import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.epilogue.logging.EpilogueBackend;
 import edu.wpi.first.epilogue.logging.NTEpilogueBackend;
 import edu.wpi.first.epilogue.logging.errors.ErrorHandler;
@@ -54,13 +55,13 @@ public class Robot extends TimedRobot {
 
   private final EnergyTracker energyTracker;
 
-  @Logged(name = "Container")
+  @Logged(name = "Container", importance = Importance.CRITICAL)
   private final RobotContainer robotContainer;
 
-  @Logged(name = "State")
+  @Logged(name = "State", importance = Importance.CRITICAL)
   private final RobotState robotState;
 
-  @Logged(name = "MatchTime")
+  @Logged(name = "MatchTime", importance = Importance.CRITICAL)
   private final MatchTime matchTime = new MatchTime(2026);
 
   public Robot() {

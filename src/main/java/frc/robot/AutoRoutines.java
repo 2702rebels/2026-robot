@@ -179,26 +179,26 @@ public class AutoRoutines {
   }
 
   private static enum TowerPathSide {
-    kLower,
-    kUpper,
+    kRight,
+    kLeft,
   }
 
-  // tower upper (left side)
-  private static final Path.Waypoint towerUpperEndpoint =
+  // tower left (upper) side
+  private static final Path.Waypoint towerLeftEndpoint =
       new Path.Waypoint(new Translation2d(1.090, 4.530), Rotation2d.fromDegrees(90));
 
-  private static final Path.Waypoint towerUpperApproach =
+  private static final Path.Waypoint towerLeftApproach =
       new Path.Waypoint(
-          towerUpperEndpoint.translationTarget().translation().minus(new Translation2d(0.2, 0)),
+          towerLeftEndpoint.translationTarget().translation().minus(new Translation2d(0.2, 0)),
           Rotation2d.fromDegrees(90));
 
-  // tower lower (right side)
-  private static final Path.Waypoint towerLowerEndpoint =
+  // tower right (lower) side
+  private static final Path.Waypoint towerRightEndpoint =
       new Path.Waypoint(new Translation2d(1.08, 2.940), Rotation2d.fromDegrees(-90));
 
-  private static final Path.Waypoint towerLowerApproach =
+  private static final Path.Waypoint towerRightApproach =
       new Path.Waypoint(
-          towerLowerEndpoint.translationTarget().translation().plus(new Translation2d(0.2, 0)),
+          towerRightEndpoint.translationTarget().translation().plus(new Translation2d(0.2, 0)),
           Rotation2d.fromDegrees(-90));
 
   private static final Path.PathConstraints towerPathConstraints =
@@ -209,11 +209,11 @@ public class AutoRoutines {
 
   private static Path createTowerPath(TowerPathSide side, Pose2d pose) {
     final var intialTranslation = new Path.TranslationTarget(pose.getTranslation());
-    return side == TowerPathSide.kLower
+    return side == TowerPathSide.kRight
         ? new Path(
-            towerPathConstraints.copy(), intialTranslation, towerLowerApproach, towerLowerEndpoint)
+            towerPathConstraints.copy(), intialTranslation, towerRightApproach, towerRightEndpoint)
         : new Path(
-            towerPathConstraints.copy(), intialTranslation, towerUpperApproach, towerUpperEndpoint);
+            towerPathConstraints.copy(), intialTranslation, towerLeftApproach, towerLeftEndpoint);
   }
 
   /** Runs automatic climbing sequence if the robot is within the alliance zone. */
@@ -226,14 +226,14 @@ public class AutoRoutines {
             return Commands.none();
           }
 
-          // select upper/lower (left/right) of the tower to climb
+          // select left/right (upper/lower) of the tower to climb
           final var towerY = Field.kTowerCenter.getY();
           final var robotY = pose.getY();
 
           final var side =
               Field.shouldFlip()
-                  ? robotY > Field.flipY(towerY) ? TowerPathSide.kLower : TowerPathSide.kUpper
-                  : robotY > towerY ? TowerPathSide.kUpper : TowerPathSide.kLower;
+                  ? robotY > Field.flipY(towerY) ? TowerPathSide.kRight : TowerPathSide.kLeft
+                  : robotY > towerY ? TowerPathSide.kLeft : TowerPathSide.kRight;
 
           // flip pose before giving it to the path, since it will auto-flip entire path
           return climbExtend()

@@ -257,7 +257,7 @@ public final class Shooter extends SubsystemBase implements EnergyReporter {
 
   /** Enables the subsystem. */
   public Command enable() {
-    return runEnd(() -> enabled = true, () -> enabled = false).withName("EnableShooter");
+    return runEnd(() -> enabled = true, () -> enabled = false).withName("ShooterEnable");
   }
 
   /** Parks hood for driving under the trench. */
@@ -279,33 +279,34 @@ public final class Shooter extends SubsystemBase implements EnergyReporter {
   /** Runs self-check. */
   public Command selfCheck() {
     return Commands.sequence(
-        Commands.print("Shooter self-check started"),
-        Commands.waitUntil(this::isInitialized),
-        Commands.print("Shooter initialized"),
-        // hood sequence
-        runOnce(() -> kHoodManualOverride.set(true)),
-        Commands.print("Hood to 10"),
-        run(() -> kHoodManual.set(10)).withTimeout(Seconds.of(2)),
-        Commands.print("Hood to 20"),
-        run(() -> kHoodManual.set(20)).withTimeout(Seconds.of(2)),
-        Commands.print("Hood to 30"),
-        run(() -> kHoodManual.set(30)).withTimeout(Seconds.of(2)),
-        Commands.print("Hood parked"),
-        parkHood().withTimeout(Seconds.of(2)),
-        run(() -> kHoodManual.set(0)).withTimeout(Seconds.of(2)),
-        runOnce(() -> kHoodManualOverride.set(false)),
-        // flywheel sequence
-        runOnce(() -> kFlywheelManualOverride.set(true)),
-        runOnce(() -> enabled = true),
-        Commands.print("Flywheel to 3000"),
-        run(() -> kFlywheelManual.set(3000)).withTimeout(Seconds.of(2)),
-        Commands.print("Flywheel to 4000"),
-        run(() -> kFlywheelManual.set(4000)).withTimeout(Seconds.of(2)),
-        Commands.print("Flywheel to 5000"),
-        run(() -> kFlywheelManual.set(5000)).withTimeout(Seconds.of(2)),
-        runOnce(() -> kFlywheelManualOverride.set(false)),
-        runOnce(() -> enabled = false),
-        Commands.print("Shooter self-check completed"));
+            Commands.print("Shooter self-check started"),
+            Commands.waitUntil(this::isInitialized),
+            Commands.print("Shooter initialized"),
+            // hood sequence
+            runOnce(() -> kHoodManualOverride.set(true)),
+            Commands.print("Hood to 10"),
+            run(() -> kHoodManual.set(10)).withTimeout(Seconds.of(2)),
+            Commands.print("Hood to 20"),
+            run(() -> kHoodManual.set(20)).withTimeout(Seconds.of(2)),
+            Commands.print("Hood to 30"),
+            run(() -> kHoodManual.set(30)).withTimeout(Seconds.of(2)),
+            Commands.print("Hood parked"),
+            parkHood().withTimeout(Seconds.of(2)),
+            run(() -> kHoodManual.set(0)).withTimeout(Seconds.of(2)),
+            runOnce(() -> kHoodManualOverride.set(false)),
+            // flywheel sequence
+            runOnce(() -> kFlywheelManualOverride.set(true)),
+            runOnce(() -> enabled = true),
+            Commands.print("Flywheel to 3000"),
+            run(() -> kFlywheelManual.set(3000)).withTimeout(Seconds.of(2)),
+            Commands.print("Flywheel to 4000"),
+            run(() -> kFlywheelManual.set(4000)).withTimeout(Seconds.of(2)),
+            Commands.print("Flywheel to 5000"),
+            run(() -> kFlywheelManual.set(5000)).withTimeout(Seconds.of(2)),
+            runOnce(() -> kFlywheelManualOverride.set(false)),
+            runOnce(() -> enabled = false),
+            Commands.print("Shooter self-check completed"))
+        .withName("ShooterSelfCheck");
   }
 
   // spotless:off

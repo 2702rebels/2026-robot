@@ -319,6 +319,12 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
         .withName("IntakeRetract");
   }
 
+  /** Reverses the roller to regurgitate the balls. */
+  public Command burp() {
+    // DO NOT REQUIRE THIS SUBSYSTEM
+    return Commands.runEnd(() -> reversed = true, () -> reversed = false).withName("IntakeBurp");
+  }
+
   @Override
   public double getTotalSupplyCurrent() {
     return Math.abs(deployMotor.getSupplyCurrentAmps())
@@ -326,23 +332,22 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
         + +Math.abs(rollerMotorFollower.getSupplyCurrentAmps());
   }
 
-  public Command burp() {
-    // DO NOT REQUIRE THIS SUBSYSTEM
-    return Commands.runEnd(() -> reversed = true, () -> reversed = false);
-  }
-
   /** Runs self-check. */
   public Command selfCheck() {
     return Commands.sequence(
-        Commands.print("Intake self-check started"),
-        Commands.waitUntil(this::isInitialized),
-        Commands.print("Intake initialized"),
-        extend(),
-        Commands.waitTime(Seconds.of(2)),
-        agitate().withTimeout(Seconds.of(3)),
-        retract(),
-        Commands.waitTime(Seconds.of(1)),
-        Commands.print("Intake self-check completed"));
+            Commands.print("Intake self-check started"),
+            Commands.waitUntil(this::isInitialized),
+            Commands.print("Intake initialized"),
+            extend(),
+            enable(),
+            Commands.waitTime(Seconds.of(2)),
+            agitate().withTimeout(Seconds.of(3)),
+            Commands.waitTime(Seconds.of(0.5)),
+            disable(),
+            retract(),
+            Commands.waitTime(Seconds.of(1)),
+            Commands.print("Intake self-check completed"))
+        .withName("IntakeSelfCheck");
   }
 
   // spotless:off

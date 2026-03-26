@@ -56,7 +56,7 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
   @Logged(name = "CrtAngle", importance = Importance.DEBUG)
   private Angle crtAngle = Degrees.zero();
 
-  @Logged(name = "CrtStatus", importance = Importance.DEBUG)
+  @Logged(name = "CrtStatus", importance = Importance.CRITICAL)
   private CRTStatus crtStatus = CRTStatus.NOT_ATTEMPTED;
 
   @Logged(name = "Offset/Mean", importance = Importance.DEBUG)
@@ -432,22 +432,23 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
   /** Runs self-check. */
   public Command selfCheck() {
     return Commands.sequence(
-        Commands.print("Turret self-check started"),
-        Commands.waitUntil(this::isInitialized),
-        Commands.print("Turret initialized"),
-        runOnce(() -> kSetpointManualOverride.set(true)),
-        Commands.print("Turret to 0"),
-        run(() -> kSetpointManual.set(0)).withTimeout(Seconds.of(2)),
-        Commands.print("Turret to 90"),
-        run(() -> kSetpointManual.set(90)).withTimeout(Seconds.of(2)),
-        Commands.print("Turret to 180"),
-        run(() -> kSetpointManual.set(180)).withTimeout(Seconds.of(2)),
-        Commands.print("Turret to -90"),
-        run(() -> kSetpointManual.set(-90)).withTimeout(Seconds.of(2)),
-        Commands.print("Turret to 0"),
-        run(() -> kSetpointManual.set(0)).withTimeout(Seconds.of(2)),
-        runOnce(() -> kSetpointManualOverride.set(false)),
-        Commands.print("Turret self-check completed"));
+            Commands.print("Turret self-check started"),
+            Commands.waitUntil(this::isInitialized),
+            Commands.print("Turret initialized"),
+            runOnce(() -> kSetpointManualOverride.set(true)),
+            Commands.print("Turret to 0"),
+            run(() -> kSetpointManual.set(0)).withTimeout(Seconds.of(2)),
+            Commands.print("Turret to 90"),
+            run(() -> kSetpointManual.set(90)).withTimeout(Seconds.of(2)),
+            Commands.print("Turret to 180"),
+            run(() -> kSetpointManual.set(180)).withTimeout(Seconds.of(2)),
+            Commands.print("Turret to -90"),
+            run(() -> kSetpointManual.set(-90)).withTimeout(Seconds.of(2)),
+            Commands.print("Turret to 0"),
+            run(() -> kSetpointManual.set(0)).withTimeout(Seconds.of(2)),
+            runOnce(() -> kSetpointManualOverride.set(false)),
+            Commands.print("Turret self-check completed"))
+        .withName("TurretSelfCheck");
   }
 
   /** Indicates that turret is ready and the hopper can proceed feeding ammo. */

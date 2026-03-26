@@ -20,7 +20,7 @@ public class CANduit {
   private final CAN can;
   private final boolean connected;
 
-  @Logged(name = "Modes", importance = Importance.DEBUG)
+  @Logged(name = "Modes", importance = Importance.CRITICAL)
   private final int[] modes = new int[8];
 
   private static final int CLASS_SET_MODE = 1;

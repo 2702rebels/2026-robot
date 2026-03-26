@@ -62,20 +62,20 @@ public final class Field {
   /** Trench width (approximate) in meters */
   public static final double kTrenchWidth = Units.inchesToMeters(50);
 
-  /** Center of the lower trench (Blue) */
-  public static final Translation2d kBlueTrenchLowerCenter =
+  /** Center of the right (lower) trench (Blue) */
+  public static final Translation2d kBlueTrenchRightCenter =
       new Translation2d(kHubLineX, kTrenchWidth / 2);
 
-  /** Center of the upper trench (Blue) */
-  public static final Translation2d kBlueTrenchUpperCenter =
+  /** Center of the left (upper) trench (Blue) */
+  public static final Translation2d kBlueTrenchLeftCenter =
       new Translation2d(kHubLineX, kFieldWidth - kTrenchWidth / 2);
 
-  /** Center of the lower trench (Red) */
-  public static final Translation2d kRedTrenchLowerCenter =
+  /** Center of the right (lower) trench (Red) */
+  public static final Translation2d kRedTrenchRightCenter =
       new Translation2d(kFieldLength - kHubLineX, kFieldWidth - kTrenchWidth / 2);
 
-  /** Center of the upper trench (Red) */
-  public static final Translation2d kRedTrenchUpperCenter =
+  /** Center of the left (upper) trench (Red) */
+  public static final Translation2d kRedTrenchLeftCenter =
       new Translation2d(kFieldLength - kHubLineX, kTrenchWidth / 2);
 
   /** Approximate passing point as measured from the corresponding corner of the field. */

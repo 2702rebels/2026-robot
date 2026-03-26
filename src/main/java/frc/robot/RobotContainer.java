@@ -27,6 +27,7 @@ import frc.robot.generated.TunerConstants;
 import frc.robot.lib.CANduit;
 import frc.robot.lib.EnergyTracker;
 import frc.robot.lib.GamePhaseTracker;
+import frc.robot.lib.GamePhaseTracker.Phase;
 import frc.robot.lib.Tunable;
 import frc.robot.subsystems.AprilTagDetector;
 import frc.robot.subsystems.Climb;
@@ -114,6 +115,9 @@ public class RobotContainer {
   // condition on when the robot is allowed to initiate shooting sequence
   public final BooleanSupplier canShoot;
 
+  // condition on when the robot is allowed to initiate auto-climbing sequence
+  private final BooleanSupplier canAutoClimb;
+
   private final SendableChooser<Command> autoChooser = new SendableChooser<>();
 
   // alerts
@@ -130,8 +134,7 @@ public class RobotContainer {
 
   private final Alert alertControllerDriverDisconnected =
       new Alert(
-          "Driver controller disconnected (port " + kControllerDriverPort + ").",
-          AlertType.kWarning);
+          "Driver controller disconnected (port " + kControllerDriverPort + ").", AlertType.kError);
 
   private final Alert alertControllerOperatorDisconnected =
       new Alert(
@@ -148,6 +151,9 @@ public class RobotContainer {
     // must be initialized before auto routines are constructed
     // shooting sequence condition
     canShoot = () -> turret.isReady.getAsBoolean() && state.isLevel() && !state.isShotSuppressed();
+
+    // auto-climb condition: when FMS connected do not allow auto-climb unless in the end-game
+    canAutoClimb = () -> !DriverStation.isFMSAttached() || state.getGamePhase() == Phase.EndGame;
 
     auto = new AutoRoutines(this, drivetrain);
 
@@ -240,19 +246,18 @@ public class RobotContainer {
     intakeRetract.onTrue(intake.retract());
     intakeAgitate.and(intake::isDeployed).whileTrue(intake.agitate());
 
-    autoClimb.onTrue(auto.climb().until(resetButton));
+    autoClimb.and(canAutoClimb).onTrue(auto.climb().until(resetButton));
 
     buttonator.button(1).onTrue(state.setPassingToDefault());
     buttonator.button(2).onTrue(state.setPassingToTrenchAuto());
-    buttonator.button(3).onTrue(state.setPassingToTrenchUpper());
-    buttonator.button(4).onTrue(state.setPassingToTrenchLower());
-
-    buttonator.button(6).onTrue(auto.trenchLBump2Runs());
-    buttonator.button(7).onTrue(auto.trenchRBump2Runs());
+    buttonator.button(3).onTrue(state.setPassingToTrenchLeft());
+    buttonator.button(4).onTrue(state.setPassingToTrenchRight());
 
     buttonator.button(10).whileTrue(intake.burp());
-
     buttonator.button(11).whileTrue(hopper.reverse());
+
+    // buttonator.button(6).onTrue(auto.trenchLBump2Runs());
+    // buttonator.button(7).onTrue(auto.trenchRBump2Runs());
 
     // self-check
     buttonator.button(12).and(DriverStation::isFMSAttached).negate().onTrue(selfCheck());
@@ -354,9 +359,17 @@ public class RobotContainer {
   /** Creates a command to rumble the controllers. */
   private Command rumble(Time time) {
     return Commands.sequence(
-        Commands.runOnce(() -> controllerDriver.getHID().setRumble(RumbleType.kBothRumble, 1.0)),
+        Commands.runOnce(
+            () -> {
+              controllerDriver.getHID().setRumble(RumbleType.kBothRumble, 1.0);
+              controllerOperator.getHID().setRumble(RumbleType.kBothRumble, 1.0);
+            }),
         Commands.waitTime(time),
-        Commands.runOnce(() -> controllerDriver.getHID().setRumble(RumbleType.kBothRumble, 0.0)));
+        Commands.runOnce(
+            () -> {
+              controllerDriver.getHID().setRumble(RumbleType.kBothRumble, 0.0);
+              controllerOperator.getHID().setRumble(RumbleType.kBothRumble, 0.0);
+            }));
   }
 
   /** Creates a command to run self-check for all subsystems. */
