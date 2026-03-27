@@ -79,7 +79,7 @@ public final class Field {
       new Translation2d(kFieldLength - kHubLineX, kTrenchWidth / 2);
 
   /** Approximate passing point as measured from the corresponding corner of the field. */
-  public static final Translation2d kDefaultPassingPoint = new Translation2d(1, 2);
+  public static final Translation2d kDefaultPassingPoint = new Translation2d(2, 2.5);
 
   private Field() {
     throw new AssertionError();
