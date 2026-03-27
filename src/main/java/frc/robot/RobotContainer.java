@@ -110,6 +110,8 @@ public class RobotContainer {
   private final Trigger intakeRetract = controllerDriver.povLeft().or(controllerOperator.povLeft());
   private final Trigger intakeAgitate =
       controllerDriver.leftTrigger().or(controllerOperator.leftTrigger());
+  private final Trigger intakeBurp = buttonator.button(10).or(controllerOperator.y());
+
   private final Trigger autoClimb = controllerDriver.y();
 
   // condition on when the robot is allowed to initiate shooting sequence
@@ -245,6 +247,7 @@ public class RobotContainer {
     intakeExtend.onTrue(intake.extend());
     intakeRetract.onTrue(intake.retract());
     intakeAgitate.and(intake::isDeployed).whileTrue(intake.agitate());
+    intakeBurp.whileTrue(intake.burp());
 
     autoClimb.and(canAutoClimb).onTrue(auto.climb().until(resetButton));
 
@@ -253,7 +256,6 @@ public class RobotContainer {
     buttonator.button(3).onTrue(state.setPassingToTrenchLeft());
     buttonator.button(4).onTrue(state.setPassingToTrenchRight());
 
-    buttonator.button(10).whileTrue(intake.burp());
     buttonator.button(11).whileTrue(hopper.reverse());
 
     // buttonator.button(6).onTrue(auto.trenchLBump2Runs());
