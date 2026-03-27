@@ -260,7 +260,7 @@ public class RobotContainer {
     // buttonator.button(7).onTrue(auto.trenchRBump2Runs());
 
     // self-check
-    buttonator.button(12).and(DriverStation::isFMSAttached).negate().onTrue(selfCheck());
+    buttonator.button(12).and(() -> !DriverStation.isFMSAttached()).onTrue(selfCheck());
   }
 
   /** Use this method to configure trigger bindings. */
