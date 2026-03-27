@@ -377,12 +377,15 @@ public class RobotContainer {
   /** Creates a command to run self-check for all subsystems. */
   private Command selfCheck() {
     return Commands.sequence(
+        Commands.print("Self-check sequence started"),
         drivetrain.selfCheck(),
         intake.selfCheck(),
         hopper.selfCheck(),
         turret.selfCheck(),
         shooter.selfCheck(),
-        climb.selfCheck());
+        intake.retract(), // retract intake after we are done with the shooter
+        climb.selfCheck(),
+        Commands.print("Self-check sequence completed"));
   }
 
   /** Gets modifier of the rotational velocity when precise rotation mode is active. */

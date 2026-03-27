@@ -344,8 +344,6 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
             agitate().withTimeout(Seconds.of(3)),
             Commands.waitTime(Seconds.of(0.5)),
             disable(),
-            retract(),
-            Commands.waitTime(Seconds.of(1)),
             Commands.print("Intake self-check completed"))
         .withName("IntakeSelfCheck");
   }
