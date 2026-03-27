@@ -48,6 +48,7 @@ public final class Shooter extends SubsystemBase implements EnergyReporter {
 
   private static final double __kHoodManual = 20;
   private static final double __kFlywheelManual = 3450; // RPMs
+  private static final double __kFlywheelTrim = 0; // RPMs
 
   @Logged(name = "Flywheel/Leader", importance = Importance.CRITICAL)
   private final LoggedTalonFX flywheelMotorLeader;
@@ -202,7 +203,7 @@ public final class Shooter extends SubsystemBase implements EnergyReporter {
         setVelocity(kFlywheelManual.get());
       } else {
         if (parameters.isPresent()) {
-          setVelocity(parameters.get().getSecond());
+          setVelocity(parameters.get().getSecond() + kFlywheelTrim.get());
         } else {
           setVelocity(0);
         }
@@ -317,5 +318,6 @@ public final class Shooter extends SubsystemBase implements EnergyReporter {
 
   private static Tunable.DoubleValue kFlywheelManual = Tunable.value("Flywheel/Manual", __kFlywheelManual, true);
   private static Tunable.BooleanValue kFlywheelManualOverride = Tunable.value("Flywheel/ManualOverride", false, true);
+  private static Tunable.DoubleValue kFlywheelTrim = Tunable.value("Flywheel/Trim", __kFlywheelTrim, true);
   // spotless:on
 }
