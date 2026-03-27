@@ -169,7 +169,7 @@ public class RobotState {
       return false;
     }
 
-    // no supression while hub is active
+    // no suppression while hub is active
     if (hubActive) {
       return false;
     }
@@ -476,7 +476,8 @@ public class RobotState {
               && shotParameters.quality() >= 0.5
               && shotParameters.distance().gte(kMinScoreDistance)
               && shotParameters.distance().lte(kMaxScoreDistance)
-              && robotSpeed <= kMaxScoreSpeed;
+              && robotSpeed <= kMaxScoreSpeed
+              && !isShotSuppressed();
     }
 
     shotVelocity.calculate(shotParameters.shooterVelocity());
