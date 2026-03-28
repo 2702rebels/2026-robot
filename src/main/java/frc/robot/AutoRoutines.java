@@ -132,8 +132,8 @@ public class AutoRoutines {
 
     Path.setDefaultGlobalConstraints(
         new Path.DefaultGlobalConstraints(
-            3.0, // maximum velocity (m/s)
-            6.0, // maximum acceleration (m/s^2)
+            3.5, // maximum velocity (m/s)
+            9.0, // maximum acceleration (m/s^2)
             540, // max angular velocity (deg/s)
             1080, // max angular acceleration (deg/s^2)
             DriveConstants.kTranslationTolerance, // translation tolerance (meters)
