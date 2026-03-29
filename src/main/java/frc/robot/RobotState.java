@@ -27,7 +27,6 @@ import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.robot.generated.TunerConstants;
 import frc.robot.lib.GamePhaseTracker.Phase;
 import frc.robot.lib.GamePhaseTracker.PhaseInfo;
@@ -258,7 +257,7 @@ public class RobotState {
         : -1;
   }
 
-  /** Recent vision pose indicator */
+  /** Indicates that robot has received vision pose recently */
   @Logged(name = "HasRecentVisionPose", importance = Importance.CRITICAL)
   public boolean hasRecentVisionPose() {
     final var age = getVisionPoseAge();
@@ -277,22 +276,24 @@ public class RobotState {
     return drivetrain.getPitch();
   }
 
-  /** Indicates that robot is level. */
+  /** Indicates that robot is level */
   @Logged(name = "IsLevel", importance = Importance.CRITICAL)
   public boolean isLevel() {
     return Math.abs(getRoll().in(Degrees)) < kLevelThreshold
         && Math.abs(getPitch().in(Degrees)) < kLevelThreshold;
   }
 
-  /** Orientation lock */
+  /** Indicates that orientation lock is enabled */
   @Logged(name = "HasOrientationLock", importance = Importance.CRITICAL)
   public boolean hasOrientationLock() {
     return drivetrain.hasOrientationLock();
   }
 
-  /** Indicator that odometry pose can be trusted */
+  /** Indicates that odometry pose can be trusted */
   @Logged(name = "IsPoseTrusted", importance = Importance.CRITICAL)
-  public final Trigger isPoseTrusted = new Trigger(() -> odometryTrust >= kOdometryTrustThreshold);
+  public boolean isPoseTrusted() {
+    return odometryTrust >= kOdometryTrustThreshold;
+  }
 
   /** Integrated swerve telemetry structure */
   @Logged(name = "SwerveTelemetry", importance = Importance.CRITICAL)

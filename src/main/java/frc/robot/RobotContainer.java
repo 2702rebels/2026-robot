@@ -364,7 +364,9 @@ public class RobotContainer {
   }
 
   private LedVision.Type getDefaultVisionFeedback() {
-    return state.isPoseTrusted.getAsBoolean() ? LedVision.Type.kTrusted : LedVision.Type.kUnknown;
+    return state.isPoseTrusted()
+        ? state.hasRecentVisionPose() ? LedVision.Type.kTrusted : LedVision.Type.kTrurstedNoVision
+        : LedVision.Type.kUnknown;
   }
 
   private Command clearOrientationLock() {

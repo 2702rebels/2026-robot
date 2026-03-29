@@ -15,6 +15,9 @@ public class LedVision extends SubsystemBase {
     /** Unknown/non-trusted odometry */
     kUnknown,
 
+    /** Trusted odometry but no vision */
+    kTrurstedNoVision,
+
     /** Trusted odometry */
     kTrusted,
   }
@@ -38,6 +41,7 @@ public class LedVision extends SubsystemBase {
       Map.of(
           Type.kNone, LEDPattern.kOff,
           Type.kUnknown, LEDPattern.solid(Color.kDarkRed),
+          Type.kTrurstedNoVision, LEDPattern.solid(Color.kYellow),
           Type.kTrusted, LEDPattern.solid(Color.kGreen));
 
   private Command runDefault(Runnable toRun) {
