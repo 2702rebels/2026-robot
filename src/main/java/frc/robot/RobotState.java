@@ -129,9 +129,6 @@ public class RobotState {
   @Logged(name = "PassingPoint", importance = Importance.CRITICAL)
   private PassingPoint passingPoint = PassingPoint.kDefault;
 
-  @Logged(name = "Shot/Confidence", importance = Importance.CRITICAL)
-  private double shotConfidence = 0;
-
   @Logged(name = "Shot/Velocity", importance = Importance.CRITICAL)
   public double getShotVelocity() {
     return shotVelocity.lastValue();
@@ -147,7 +144,7 @@ public class RobotState {
     return shotParameters.quality();
   }
 
-  @Logged(name = "Shot/Iterations", importance = Importance.DEBUG)
+  @Logged(name = "Shot/Iterations", importance = Importance.CRITICAL)
   public int getShotIterations() {
     return shotParameters.iterations();
   }
@@ -178,6 +175,8 @@ public class RobotState {
     return phaseElapsedTime.in(Seconds) > kTimeAfterActiveFudge
         && phaseRemainingTime.in(Seconds) > kTimeBeforeActiveFudge;
   }
+
+  public Tunable.BooleanValue kVisionAssist = Tunable.value("VisionAssist", true, true);
 
   private RobotState() {
     if (Constants.Settings.ctreLoggingEnabled) {
@@ -420,33 +419,35 @@ public class RobotState {
               && MathUtil.isNear(0, robotSpeeds.omegaRadiansPerSecond, kSlowOmegaTolerance);
     }
 
-    // poll vision state
-    if (visionStateSupplier != null) {
-      final var visionState = visionStateSupplier.get();
+    if (kVisionAssist.get()) {
+      // poll vision state
+      if (visionStateSupplier != null) {
+        final var visionState = visionStateSupplier.get();
 
-      // check if we have received a newer vision pose
-      final var newVisionPoseTimestamp = visionState.pose.timestamp();
-      if (newVisionPoseTimestamp > visionPoseTimestamp) {
-        visionPose = visionState.pose.value();
+        // check if we have received a newer vision pose
+        final var newVisionPoseTimestamp = visionState.pose.timestamp();
+        if (newVisionPoseTimestamp > visionPoseTimestamp) {
+          visionPose = visionState.pose.value();
 
-        // special handling of the very first vision update:
-        // if the robot is stationary set odometry pose to the vision pose
-        if (visionPoseTimestamp <= 0 && isRobotStationary) {
-          resetOdometryPose(visionPose);
+          // special handling of the very first vision update:
+          // if the robot is stationary set odometry pose to the vision pose
+          if (visionPoseTimestamp <= 0 && isRobotStationary) {
+            resetOdometryPose(visionPose);
+          }
+
+          visionPoseTimestamp = newVisionPoseTimestamp;
         }
-
-        visionPoseTimestamp = newVisionPoseTimestamp;
       }
-    }
 
-    // fuse robot pose with vision
-    if (visionPoseTimestamp > 0 && visionPoseTimestamp > timestamp - kVisionCutoff) {
-      // reset robot pose to vision pose when moving slowly and odometry is not trusted
-      if (isRobotSlow && odometryTrust < kOdometryTrustThreshold) {
-        resetOdometryPose(visionPose);
-      } else {
-        drivetrain.addVisionMeasurement(
-            visionPose, Utils.fpgaToCurrentTime(visionPoseTimestamp / 1000000.0));
+      // fuse robot pose with vision
+      if (visionPoseTimestamp > 0 && visionPoseTimestamp > timestamp - kVisionCutoff) {
+        // reset robot pose to vision pose when moving slowly and odometry is not trusted
+        if (isRobotSlow && odometryTrust < kOdometryTrustThreshold) {
+          resetOdometryPose(visionPose);
+        } else {
+          drivetrain.addVisionMeasurement(
+              visionPose, Utils.fpgaToCurrentTime(visionPoseTimestamp / 1000000.0));
+        }
       }
     }
 

@@ -302,6 +302,16 @@ public class RobotContainer {
                   alertMissingAutoWinAlliance.set(false);
                 }));
 
+    // link vision assist to the master override
+    new Trigger(() -> state.kVisionAssist.get())
+        .onChange(
+            Commands.runOnce(
+                () -> {
+                  final var v = state.kVisionAssist.get();
+                  shooter.masterOverride = !v;
+                  turret.masterOverride = !v;
+                }));
+
     // hub to become active alert (5s prior)
     new Trigger(
             () ->

@@ -50,7 +50,7 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
   @Logged(name = "Motor", importance = Importance.CRITICAL)
   private final LoggedTalonFX motor;
 
-  @Logged(name = "Setpoint", importance = Importance.DEBUG)
+  @Logged(name = "Setpoint", importance = Importance.CRITICAL)
   private Angle setpoint = Degrees.zero();
 
   @Logged(name = "CrtAngle", importance = Importance.DEBUG)
@@ -136,6 +136,9 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
 
   // duty-cycle used to run initialization sequence
   private double initDutyCycle = 0.05;
+
+  @Logged(name = "MasterOverride", importance = Importance.CRITICAL)
+  public boolean masterOverride = false;
 
   public Turret(CANBus canbus, CANduit canduit) {
     motor =
@@ -346,7 +349,7 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
         crt.getAngleOptional().ifPresent(this::estimateTurretAngle);
       }
     } else {
-      if (kSetpointManualOverride.get()) {
+      if (masterOverride || kSetpointManualOverride.get()) {
         setAngle(Degrees.of(kSetpointManual.get()));
       } else {
         setAngle(trackingAngleSupplier.get());

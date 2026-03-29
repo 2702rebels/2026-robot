@@ -47,7 +47,7 @@ public final class Shooter extends SubsystemBase implements EnergyReporter {
   private static final double __kHoodDefaultAngle = 10;
 
   private static final double __kHoodManual = 20;
-  private static final double __kFlywheelManual = 3450; // RPMs
+  private static final double __kFlywheelManual = 3700; // RPMs
   private static final double __kFlywheelTrim = 0; // RPMs
 
   @Logged(name = "Flywheel/Leader", importance = Importance.CRITICAL)
@@ -96,6 +96,9 @@ public final class Shooter extends SubsystemBase implements EnergyReporter {
   private static double toHoodMotorPosition(Angle value) {
     return value.in(Rotations) * kHoodConversionFactor;
   }
+
+  @Logged(name = "MasterOverride", importance = Importance.CRITICAL)
+  public boolean masterOverride = false;
 
   public Shooter(CANBus canbus) {
     flywheelMotorLeader =
@@ -184,7 +187,7 @@ public final class Shooter extends SubsystemBase implements EnergyReporter {
         initialized = true;
       }
     } else {
-      if (kHoodManualOverride.get()) {
+      if (masterOverride || kHoodManualOverride.get()) {
         setAngle(kHoodManual.get());
       } else {
         if (parameters.isPresent()) {
@@ -199,7 +202,7 @@ public final class Shooter extends SubsystemBase implements EnergyReporter {
     }
 
     if (enabled) {
-      if (kFlywheelManualOverride.get()) {
+      if (masterOverride || kFlywheelManualOverride.get()) {
         setVelocity(kFlywheelManual.get());
       } else {
         if (parameters.isPresent()) {
