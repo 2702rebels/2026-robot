@@ -17,7 +17,6 @@ import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.robot.Constants;
 import frc.robot.lib.CANduit;
 import frc.robot.lib.EasyCRT;
@@ -25,8 +24,10 @@ import frc.robot.lib.EasyCRT.CRTStatus;
 import frc.robot.lib.EasyCRTConfig;
 import frc.robot.lib.EnergyReporter;
 import frc.robot.lib.LoggedTalonFX;
+import frc.robot.lib.Misc;
 import frc.robot.lib.Tunable;
 import java.util.Optional;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 public final class Turret extends SubsystemBase implements EnergyReporter {
@@ -140,6 +141,9 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
   @Logged(name = "MasterOverride", importance = Importance.CRITICAL)
   public boolean masterOverride = false;
 
+  @Logged(name = "IsReady", importance = Importance.CRITICAL)
+  public final BooleanSupplier isReady;
+
   public Turret(CANBus canbus, CANduit canduit) {
     motor =
         new LoggedTalonFX(
@@ -202,6 +206,9 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
 
     // adjust initialization direction based on the presumed position
     initDutyCycle *= (getPosition().in(Degrees) >= 0 ? -1 : 1);
+
+    // debounced ready state based on the turret position
+    isReady = Misc.debounce(this::isAtSetpoint, 0.25, DebounceType.kFalling);
   }
 
   /**
@@ -453,10 +460,6 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
             Commands.print("Turret self-check completed"))
         .withName("TurretSelfCheck");
   }
-
-  /** Indicates that turret is ready and the hopper can proceed feeding ammo. */
-  public final Trigger isReady =
-      new Trigger(this::isAtSetpoint).debounce(0.25, DebounceType.kFalling);
 
   // spotless:off
   private static Tunable.DoubleValue kSetpointManual = Tunable.value("Turret/Manual", __kSetpointManual, true);

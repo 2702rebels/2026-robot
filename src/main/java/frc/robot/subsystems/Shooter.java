@@ -18,6 +18,7 @@ import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.epilogue.Logged.Importance;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.Pair;
+import edu.wpi.first.math.filter.Debouncer.DebounceType;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
@@ -25,9 +26,11 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 import frc.robot.lib.EnergyReporter;
 import frc.robot.lib.LoggedTalonFX;
+import frc.robot.lib.Misc;
 import frc.robot.lib.PhoenixUtil;
 import frc.robot.lib.Tunable;
 import java.util.Optional;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 public final class Shooter extends SubsystemBase implements EnergyReporter {
@@ -100,6 +103,11 @@ public final class Shooter extends SubsystemBase implements EnergyReporter {
   @Logged(name = "MasterOverride", importance = Importance.CRITICAL)
   public boolean masterOverride = false;
 
+  @Logged(name = "IsReady", importance = Importance.CRITICAL)
+  public final BooleanSupplier isReady;
+
+  private final BooleanSupplier isAtSetpointDebounced;
+
   public Shooter(CANBus canbus) {
     flywheelMotorLeader =
         new LoggedTalonFX(
@@ -170,6 +178,10 @@ public final class Shooter extends SubsystemBase implements EnergyReporter {
     Tunable.bind("Hood", hoodMotor);
 
     hoodMotor.resetPosition(0);
+
+    // debounced ready state based on the shooter state
+    isAtSetpointDebounced = Misc.debounce(this::isAtSetpoint, 0.150, DebounceType.kFalling);
+    isReady = () -> flywheelSetpoint > 0 && isAtSetpointDebounced.getAsBoolean();
   }
 
   @Override

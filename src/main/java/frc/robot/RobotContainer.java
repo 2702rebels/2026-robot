@@ -115,6 +115,7 @@ public class RobotContainer {
   private final Trigger autoClimb = controllerDriver.y();
 
   // condition on when the robot is allowed to initiate shooting sequence
+  @Logged(name = "Conditions/CanShoot", importance = Importance.CRITICAL)
   public final BooleanSupplier canShoot;
 
   // condition on when the robot is allowed to initiate auto-climbing sequence
@@ -152,7 +153,8 @@ public class RobotContainer {
 
     // must be initialized before auto routines are constructed
     // shooting sequence condition
-    canShoot = () -> turret.isReady.getAsBoolean() && state.isLevel();
+    canShoot =
+        () -> state.isLevel() && turret.isReady.getAsBoolean() && shooter.isReady.getAsBoolean();
 
     // auto-climb condition: when FMS connected do not allow auto-climb unless in the end-game
     canAutoClimb = () -> !DriverStation.isFMSAttached() || state.getGamePhase() == Phase.EndGame;
