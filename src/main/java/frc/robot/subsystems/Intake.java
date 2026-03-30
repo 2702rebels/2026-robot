@@ -61,10 +61,10 @@ public final class Intake extends SubsystemBase implements EnergyReporter {
   @Logged(name = "Deploy", importance = Importance.CRITICAL)
   private final LoggedTalonFX deployMotor;
 
-  @Logged(name = "Setpoint/Deploy", importance = Importance.DEBUG)
+  @Logged(name = "Setpoint/Deploy", importance = Importance.CRITICAL)
   private double deploySetpoint = 0;
 
-  @Logged(name = "Setpoint/Roller", importance = Importance.DEBUG)
+  @Logged(name = "Setpoint/Roller", importance = Importance.CRITICAL)
   private double rollerSetpoint = 0;
 
   private final Follower followerControl;

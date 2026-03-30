@@ -59,10 +59,10 @@ public final class Shooter extends SubsystemBase implements EnergyReporter {
   @Logged(name = "Hood", importance = Importance.CRITICAL)
   private final LoggedTalonFX hoodMotor;
 
-  @Logged(name = "Setpoint/Flywheel", importance = Importance.DEBUG)
+  @Logged(name = "Setpoint/Flywheel", importance = Importance.CRITICAL)
   private double flywheelSetpoint = 0;
 
-  @Logged(name = "Setpoint/Hood", importance = Importance.DEBUG)
+  @Logged(name = "Setpoint/Hood", importance = Importance.CRITICAL)
   private Angle hoodSetpoint = Degrees.zero();
 
   private final Follower followerControl;

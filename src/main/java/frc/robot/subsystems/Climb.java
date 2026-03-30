@@ -48,7 +48,7 @@ public final class Climb extends SubsystemBase implements EnergyReporter {
   @Logged(name = "Motor", importance = Importance.CRITICAL)
   private final LoggedTalonFXS motor;
 
-  @Logged(name = "Setpoint", importance = Importance.DEBUG)
+  @Logged(name = "Setpoint", importance = Importance.CRITICAL)
   private Distance setpoint = Inches.zero();
 
   private final PositionVoltage control;
