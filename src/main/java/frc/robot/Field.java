@@ -247,19 +247,18 @@ public final class Field {
    */
   public static boolean isAwayFromTower(Pose2d pose) {
     final var xy = pose.getTranslation();
-    final var tower = transform(kTowerCenter);
 
     if (shouldFlip()) {
-      if (xy.getX() + kBumperSize * 0.5 < kFieldLength - tower.getX()) {
+      if (xy.getX() < kFieldLength - kTowerCenter.getX() - kBumperSize * 0.5) {
         return true;
       }
     } else {
-      if (xy.getX() - kBumperSize * 0.5 > tower.getX()) {
+      if (xy.getX() > kTowerCenter.getX() + kBumperSize * 0.5) {
         return true;
       }
     }
 
-    final var dy = Math.abs(transformY(tower.getY()) - pose.getY());
+    final var dy = Math.abs(transformY(kTowerCenter.getY()) - pose.getY());
     return dy > kTowerSafeRadius;
   }
 }
