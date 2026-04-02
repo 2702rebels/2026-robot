@@ -279,7 +279,7 @@ public class RobotContainer {
 
     RobotModeTriggers.teleop()
         .and(climb::isEngaged)
-        .and(() -> state.getGamePhase() != Phase.EndGame)
+        .and(() -> state.getGamePhase() == Phase.Transition)
         .onTrue(climb.disengage());
 
     // auto-retract climb

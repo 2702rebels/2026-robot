@@ -220,6 +220,7 @@ public class RobotState {
     passCalculator.putLUTEntry(Meters.of(7.00), 4800, 30, 1.70);
     passCalculator.putLUTEntry(Meters.of(8.00), 5250, 30, 1.85);
     passCalculator.putLUTEntry(Meters.of(10.0), 6000, 30, 2.0);
+    passCalculator.putLUTEntry(Meters.of(12.0), 6500, 30, 2.5);
   }
 
   /** Odometry trust (0 - no trust, 1 - full trust) */
