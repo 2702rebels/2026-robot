@@ -10,7 +10,6 @@ import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
-import java.util.function.Function;
 
 /** Field-related functionality. Blue alliance origin. */
 public final class Field {
@@ -168,11 +167,25 @@ public final class Field {
     return new Pose3d(flip(pose.getTranslation()), flip(pose.getRotation()));
   }
 
-  public static Function<Pose2d, Pose2d> fieldPose = (Pose2d v) -> shouldFlip() ? flip(v) : v;
-  public static Function<Translation2d, Translation2d> fieldTranslation =
-      (Translation2d v) -> shouldFlip() ? flip(v) : v;
-  public static Function<Double, Double> fieldX = (Double v) -> shouldFlip() ? flipX(v) : v;
-  public static Function<Double, Double> fieldY = (Double v) -> shouldFlip() ? flipY(v) : v;
+  /** Transforms the "blue-origin" pose based on the current alliance. */
+  public static Pose2d transform(Pose2d v) {
+    return shouldFlip() ? flip(v) : v;
+  }
+
+  /** Transforms the "blue-origin" coordinates based on the current alliance. */
+  public static Translation2d transform(Translation2d v) {
+    return shouldFlip() ? flip(v) : v;
+  }
+
+  /** Transforms the "blue-origin" X coordinate based on the current alliance. */
+  public static double transformX(double v) {
+    return shouldFlip() ? flipX(v) : v;
+  }
+
+  /** Transforms the "blue-origin" Y coordinate based on the current alliance. */
+  public static double transformY(double v) {
+    return shouldFlip() ? flipY(v) : v;
+  }
 
   private static double kTrenchZoneThreshold = Units.inchesToMeters(12);
 
@@ -234,7 +247,7 @@ public final class Field {
    */
   public static boolean isAwayFromTower(Pose2d pose) {
     final var xy = pose.getTranslation();
-    final var tower = fieldTranslation.apply(kTowerCenter);
+    final var tower = transform(kTowerCenter);
 
     if (shouldFlip()) {
       if (xy.getX() + kBumperSize * 0.5 < kFieldLength - tower.getX()) {
@@ -246,7 +259,7 @@ public final class Field {
       }
     }
 
-    final var dy = Math.abs(fieldY.apply(tower.getY()) - pose.getY());
+    final var dy = Math.abs(transformY(tower.getY()) - pose.getY());
     return dy > kTowerSafeRadius;
   }
 }

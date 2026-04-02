@@ -102,6 +102,20 @@ public class TimestampedCircularBuffer<T> implements Iterable<TimestampedValue<T
     return full ? timestamps[head] : timestamps[0];
   }
 
+  /** Returns the newest (most recently) recorded entry. */
+  public TimestampedValue<T> getHead() {
+    if (full) {
+      return getAt(head == 0 ? capacity - 1 : head - 1);
+    } else {
+      return head > 0 ? getAt(head - 1) : null;
+    }
+  }
+
+  /** Returns the oldest recorded entry. */
+  public TimestampedValue<T> getTail() {
+    return full ? getAt(head) : getAt(0);
+  }
+
   /** Returns value from the queue with the timestamp closest to the requested one. */
   public Optional<T> findAt(long timestamp) {
     final var size = size();

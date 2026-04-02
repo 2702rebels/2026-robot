@@ -11,10 +11,12 @@ import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.Matrix;
 import edu.wpi.first.math.Pair;
 import edu.wpi.first.math.VecBuilder;
+import edu.wpi.first.math.filter.LinearFilter;
 import edu.wpi.first.math.filter.MedianFilter;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
+import edu.wpi.first.math.geometry.Twist2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.numbers.N1;
 import edu.wpi.first.math.numbers.N3;
@@ -72,6 +74,7 @@ public class RobotState {
   private static final Distance kMinScoreDistance = Meters.of(1.5);
   private static final Distance kMaxScoreDistance = Meters.of(6);
   private static final double kMaxScoreSpeed = 2.5; // m/s
+  private static final Time kMechanismDelay = Seconds.of(0.15);
 
   // fudge factor (in seconds) to allow shooting to start before hub becomes active
   // captures both the mechanism delay (0.5s) and ToF (~1s)
@@ -95,6 +98,11 @@ public class RobotState {
   // timestamped log of recently measured (within last second) chassis speeds
   private final TimestampedCircularBuffer<ChassisSpeeds> chassisSpeeds =
       new TimestampedCircularBuffer<>(50);
+
+  // robot-centric acceleration tracking
+  private final LinearFilter robotAx = LinearFilter.movingAverage(3);
+  private final LinearFilter robotAy = LinearFilter.movingAverage(3);
+  private final LinearFilter robotAw = LinearFilter.movingAverage(3);
 
   // bound drivetrain
   private CommandSwerveDrivetrain drivetrain;
@@ -229,6 +237,10 @@ public class RobotState {
   /** Robot speed */
   @Logged(name = "RobotSpeed", importance = Importance.CRITICAL)
   private double robotSpeed = 0;
+
+  /** Robot acceleration */
+  @Logged(name = "RobotAcceleration", importance = Importance.CRITICAL)
+  private double robotAcceleration = 0;
 
   /** Low battery condition */
   @Logged(name = "IsLowBattery", importance = Importance.CRITICAL)
@@ -400,6 +412,22 @@ public class RobotState {
       final var rotation = driveState.Pose.getRotation();
       final var robotSpeeds = driveState.Speeds;
       final var fieldSpeeds = ChassisSpeeds.fromRobotRelativeSpeeds(robotSpeeds, rotation);
+
+      // average acceleration
+      if (chassisSpeeds.size() > 0) {
+        final var prevTimestampedSpeeds = chassisSpeeds.getHead();
+        final var prevSpeeds =
+            ChassisSpeeds.fromFieldRelativeSpeeds(prevTimestampedSpeeds.value(), rotation);
+
+        // microseconds to seconds
+        final var dt = (timestamp - prevTimestampedSpeeds.timestamp()) / 1e6;
+        robotAx.calculate((robotSpeeds.vxMetersPerSecond - prevSpeeds.vxMetersPerSecond) / dt);
+        robotAy.calculate((robotSpeeds.vyMetersPerSecond - prevSpeeds.vyMetersPerSecond) / dt);
+        robotAw.calculate(
+            (robotSpeeds.omegaRadiansPerSecond - prevSpeeds.omegaRadiansPerSecond) / dt);
+        robotAcceleration = Math.hypot(robotAx.lastValue(), robotAy.lastValue());
+      }
+
       chassisSpeeds.enqueue(timestamp, fieldSpeeds);
 
       // reduce trust in odometry if slippage is detected
@@ -462,15 +490,18 @@ public class RobotState {
     // determine effective turret angle and shot parameters
     final var pose = getRobotPose();
     final var poseXY = pose.getTranslation();
+    final var speeds = drivetrain.getFieldSpeeds();
 
     if (Field.isInPassingZone(poseXY)) {
-      shotParameters =
-          passCalculator.calculate(pose, drivetrain.getFieldSpeeds(), getPassingTarget());
+      shotParameters = passCalculator.calculate(pose, speeds, getPassingTarget());
+
+      // always allow passing
       shotPossible = true;
     } else {
-      final var speeds = drivetrain.getFieldSpeeds();
+      // use predicted pose to compensate for the feeder mechanism delay
       shotParameters =
-          shotCalculator.calculate(pose, speeds, Field.fieldTranslation.apply(Field.kHubCenter));
+          shotCalculator.calculate(
+              getPredictedPose(kMechanismDelay), speeds, Field.transform(Field.kHubCenter));
 
       // prepare the shot but do not shoot unless actually within the shooting zone
       shotPossible =
@@ -508,6 +539,20 @@ public class RobotState {
   /** Returns observed pose at the specified timestamp. */
   public Optional<Pose2d> getOdometryPoseAt(long timestamp) {
     return drivetrain != null ? drivetrain.getPoseAt(timestamp) : Optional.empty();
+  }
+
+  /** Returns predicted pose at the specified time into the future. */
+  public Pose2d getPredictedPose(Time t) {
+    final var rv = drivetrain.getRobotSpeeds();
+    final var dt = t.in(Seconds);
+    final var dt2 = 0.5 * dt * dt;
+    final var twist =
+        new Twist2d(
+            rv.vxMetersPerSecond * dt + robotAx.lastValue() * dt2,
+            rv.vyMetersPerSecond * dt + robotAy.lastValue() * dt2,
+            rv.omegaRadiansPerSecond * dt + robotAw.lastValue() * dt2);
+
+    return getRobotPose().exp(twist);
   }
 
   private final double[] poseArray = new double[3];
@@ -583,22 +628,26 @@ public class RobotState {
   }
 
   /** Sets passing target. */
-  public void setPassingTarget(PassingPoint targetPoint) {
+  private void setPassingTarget(PassingPoint targetPoint) {
     passingPoint = targetPoint;
   }
 
+  /** Sets passing target to the default point. */
   public Command setPassingToDefault() {
     return Commands.runOnce(() -> setPassingTarget(PassingPoint.kDefault));
   }
 
+  /** Sets passing target to the auto trench zone. */
   public Command setPassingToTrenchAuto() {
     return Commands.runOnce(() -> setPassingTarget(PassingPoint.kTrenchAuto));
   }
 
+  /** Sets passing target to the left trench zone. */
   public Command setPassingToTrenchLeft() {
     return Commands.runOnce(() -> setPassingTarget(PassingPoint.kTrenchLeft));
   }
 
+  /** Sets passing target to the right trench zone. */
   public Command setPassingToTrenchRight() {
     return Commands.runOnce(() -> setPassingTarget(PassingPoint.kTrenchRight));
   }
@@ -625,21 +674,20 @@ public class RobotState {
     switch (targetPoint) {
       case kTrenchRight:
         return new Translation2d(
-            Field.fieldX.apply(Field.kStartingLineX),
-            Field.fieldY.apply(Field.kTrenchWidth * 0.75));
+            Field.transformX(Field.kStartingLineX), Field.transformY(Field.kTrenchWidth * 0.75));
 
       case kTrenchLeft:
         return new Translation2d(
-            Field.fieldX.apply(Field.kStartingLineX),
-            Field.fieldY.apply(Field.kFieldWidth - Field.kTrenchWidth * 0.75));
+            Field.transformX(Field.kStartingLineX),
+            Field.transformY(Field.kFieldWidth - Field.kTrenchWidth * 0.75));
 
       case kTrenchAuto:
         return new Translation2d(
-            Field.fieldX.apply(Field.kStartingLineX), originY + signY * Field.kTrenchWidth * 0.75);
+            Field.transformX(Field.kStartingLineX), originY + signY * Field.kTrenchWidth * 0.75);
 
       default:
         return new Translation2d(
-            Field.fieldX.apply(Field.kDefaultPassingPoint.getX()),
+            Field.transformX(Field.kDefaultPassingPoint.getX()),
             originY + signY * Field.kDefaultPassingPoint.getY());
     }
   }
@@ -661,7 +709,7 @@ public class RobotState {
 
   @Logged(name = "Tuning/ActualShotDistance", importance = Importance.DEBUG)
   public Distance getActualShotDistance() {
-    final var target = Field.fieldTranslation.apply(Field.kHubCenter);
+    final var target = Field.transform(Field.kHubCenter);
     return Meters.of(getShooterFieldPose(getRobotPose()).minus(target).getNorm());
   }
 
@@ -676,8 +724,8 @@ public class RobotState {
 
   @Logged(name = "Tuning/ShotPose", importance = Importance.DEBUG)
   public Pose2d getTuningShotPose() {
-    final var target = Field.fieldTranslation.apply(Field.kHubCenter);
-    final var corner = Field.fieldTranslation.apply(new Translation2d(0, Field.kFieldWidth));
+    final var target = Field.transform(Field.kHubCenter);
+    final var corner = Field.transform(new Translation2d(0, Field.kFieldWidth));
 
     final var angle = target.minus(corner).getAngle();
     final var position = new Translation2d(tuningShotDistance.get(), 0).rotateBy(angle);
