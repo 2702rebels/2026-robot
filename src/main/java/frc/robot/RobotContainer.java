@@ -209,9 +209,9 @@ public class RobotContainer {
           // drivetrain will execute this command periodically
           drivetrain.driveTeleop(
               // drive forward with negative Y (forward)
-              () -> -smoothInput(controllerDriver.getLeftY()),
+              () -> -smoothInput(controllerDriver.getLeftY()) * getVelocityModifier(),
               // drive left with negative X (left)
-              () -> -smoothInput(controllerDriver.getLeftX()),
+              () -> -smoothInput(controllerDriver.getLeftX()) * getVelocityModifier(),
               // drive counterclockwise with negative X (left)
               () -> -smoothInput(controllerDriver.getRightX()) * getOmegaModifier()));
     }
@@ -405,13 +405,26 @@ public class RobotContainer {
         Commands.print("Self-check sequence completed"));
   }
 
+  private boolean shouldApplyShootSlowdown() {
+    return shootButton.getAsBoolean()
+        && Field.isInShootingZone(drivetrain.getPose().getTranslation());
+  }
+
   /** Gets modifier of the rotational velocity when precise rotation mode is active. */
   private double getOmegaModifier() {
-    return preciseRotationActive.getAsBoolean() ? kPreciseRotation.get() : 1;
+    return preciseRotationActive.getAsBoolean()
+        ? kPreciseRotation.get()
+        : shouldApplyShootSlowdown() ? kShootSlowdown.get() : 1.0;
+  }
+
+  /** Gets modifier of the translational (linear) velocity. */
+  private double getVelocityModifier() {
+    return shouldApplyShootSlowdown() ? kShootSlowdown.get() : 1.0;
   }
 
   // spotless:off
   private static final Tunable.DoubleValue kEndgameAlert = Tunable.value("Endgame/Alert", 10.0);
   private static final Tunable.DoubleValue kPreciseRotation = Tunable.value("Control/PreciseRotation", 0.2);
+  private static final Tunable.DoubleValue kShootSlowdown = Tunable.value("Control/ShootSlowdown", 0.5, true);
   // spotless:on
 }
