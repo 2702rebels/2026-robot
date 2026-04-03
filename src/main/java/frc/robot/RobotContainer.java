@@ -413,21 +413,22 @@ public class RobotContainer {
         && Field.isInShootingZone(drivetrain.getPose().getTranslation());
   }
 
-  /** Gets modifier of the rotational velocity when precise rotation mode is active. */
+  /** Gets modifier of the rotational velocity. */
   private double getOmegaModifier() {
     return preciseRotationActive.getAsBoolean()
         ? kPreciseRotation.get()
-        : shouldApplyShootSlowdown() ? kShootSlowdown.get() : 1.0;
+        : shouldApplyShootSlowdown() ? kShootSlowdownRotation.get() : 1.0;
   }
 
   /** Gets modifier of the translational (linear) velocity. */
   private double getVelocityModifier() {
-    return shouldApplyShootSlowdown() ? kShootSlowdown.get() : 1.0;
+    return shouldApplyShootSlowdown() ? kShootSlowdownTranslation.get() : 1.0;
   }
 
   // spotless:off
   private static final Tunable.DoubleValue kEndgameAlert = Tunable.value("Endgame/Alert", 10.0);
   private static final Tunable.DoubleValue kPreciseRotation = Tunable.value("Control/PreciseRotation", 0.2);
-  private static final Tunable.DoubleValue kShootSlowdown = Tunable.value("Control/ShootSlowdown", 0.5, true);
+  private static final Tunable.DoubleValue kShootSlowdownTranslation = Tunable.value("Control/ShootSlowdown/Translation", 0.3, true);
+  private static final Tunable.DoubleValue kShootSlowdownRotation = Tunable.value("Control/ShootSlowdown/Rotation", 0.25, true);
   // spotless:on
 }
