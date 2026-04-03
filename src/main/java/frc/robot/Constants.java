@@ -51,6 +51,7 @@ public final class Constants {
   public static final double cyclePeriodSeconds = 0.02;
 
   public static final class Network {
+    public static final int UDP_PORT_TIMESYNC = 27020;
     public static final int UDP_PORT_APRILTAG_DETECTOR = 27022;
   }
 

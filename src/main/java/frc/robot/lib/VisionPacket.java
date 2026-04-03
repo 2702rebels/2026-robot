@@ -73,7 +73,7 @@ public class VisionPacket implements StructSerializable {
 
     @Override
     public String getSchema() {
-      return "uint8 flags;long timestamp;double x;double y;double theta;double quality;uint8 count;AprilTagInfo tags[6];";
+      return "uint8 flags;uint64 timestamp;double x;double y;double theta;double quality;uint8 count;AprilTagInfo tags[6];";
     }
 
     @Override

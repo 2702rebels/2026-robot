@@ -38,6 +38,7 @@ import frc.robot.subsystems.LedFeedback;
 import frc.robot.subsystems.LedResource;
 import frc.robot.subsystems.LedVision;
 import frc.robot.subsystems.Shooter;
+import frc.robot.subsystems.Timesync;
 import frc.robot.subsystems.Turret;
 import java.util.function.BooleanSupplier;
 
@@ -61,6 +62,8 @@ public class RobotContainer {
   private final LedResource led = new LedResource(Constants.PwmID.LED);
   private final LedFeedback ledFeedback = new LedFeedback(led, this::getDefaultLedFeedback);
   private final LedVision ledVision = new LedVision(led, this::getDefaultVisionFeedback);
+
+  private final Timesync timesync = new Timesync();
 
   @Logged(name = "CANduit", importance = Importance.CRITICAL)
   private final CANduit canduit;

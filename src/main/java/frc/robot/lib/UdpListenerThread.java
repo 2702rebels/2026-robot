@@ -5,17 +5,20 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.function.Consumer;
+import java.util.Optional;
 import java.util.function.Function;
 
 public class UdpListenerThread<T> extends Thread {
   private final int port;
   private final int mtu;
-  private final Consumer<T> packetConsumer;
+  private final Function<T, Optional<byte[]>> packetConsumer;
   private final Function<ByteBuffer, T> unpack;
 
   public UdpListenerThread(
-      int port, int mtu, Consumer<T> packetConsumer, Function<ByteBuffer, T> unpack) {
+      int port,
+      int mtu,
+      Function<T, Optional<byte[]>> packetConsumer,
+      Function<ByteBuffer, T> unpack) {
     this.port = port;
     this.mtu = mtu;
     this.packetConsumer = packetConsumer;
@@ -40,7 +43,11 @@ public class UdpListenerThread<T> extends Thread {
         final var data = packet.getData();
         final var bb = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN);
 
-        packetConsumer.accept(unpack.apply(bb));
+        final var response = packetConsumer.apply(unpack.apply(bb));
+        if (response.isPresent()) {
+          final var d = response.get();
+          socket.send(new DatagramPacket(d, d.length, packet.getAddress(), packet.getPort()));
+        }
       }
     } catch (Exception e) {
       DriverStation.reportError(getName() + ": " + e.getMessage(), e.getStackTrace());

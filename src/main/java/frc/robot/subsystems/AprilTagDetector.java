@@ -15,6 +15,7 @@ import frc.robot.lib.UdpListenerThread;
 import frc.robot.lib.VisionPacket;
 import frc.robot.lib.VisionPose;
 import frc.robot.lib.VisionState;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class AprilTagDetector {
@@ -46,13 +47,13 @@ public class AprilTagDetector {
     listener.start();
   }
 
-  private void packetReceived(VisionPacket packet) {
+  private Optional<byte[]> packetReceived(VisionPacket packet) {
     final var t = RobotController.getTime();
 
     // ignore packets that are too far into the past or into the future
     // indicating time sync issues
     if (Math.abs(t - packet.timestamp) > kTimeSyncCutoffMicroseconds) {
-      return;
+      return Optional.empty();
     }
 
     latency.set(t - packet.timestamp);
@@ -76,6 +77,8 @@ public class AprilTagDetector {
         }
       }
     }
+
+    return Optional.empty();
   }
 
   /** Returns recent latency in milliseconds. */
