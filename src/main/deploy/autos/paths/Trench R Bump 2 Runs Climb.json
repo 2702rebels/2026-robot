@@ -5,7 +5,7 @@
       "translation_target": {
         "x_meters": 4.1,
         "y_meters": 0.63,
-        "intermediate_handoff_radius_meters": 0.2
+        "intermediate_handoff_radius_meters": 0.6
       },
       "rotation_target": {
         "rotation_radians": 1.5707963267948966,
@@ -57,7 +57,7 @@
       "translation_target": {
         "x_meters": 3.2,
         "y_meters": 2.47,
-        "intermediate_handoff_radius_meters": 0.2
+        "intermediate_handoff_radius_meters": 0.6
       },
       "rotation_target": {
         "rotation_radians": 3.141592653589793,
@@ -72,17 +72,17 @@
     {
       "type": "event_trigger",
       "t_ratio": 0.0,
-      "lib_key": "intake_stop"
-    },
-    {
-      "type": "event_trigger",
-      "t_ratio": 0.0,
       "lib_key": "shoot_6"
     },
     {
       "type": "event_trigger",
-      "t_ratio": 0.0,
-      "lib_key": "intake_agitate"
+      "t_ratio": 0.4,
+      "lib_key": "intake_stop"
+    },
+    {
+      "type": "event_trigger",
+      "t_ratio": 0.4,
+      "lib_key": "intake_agitate_2"
     },
     {
       "type": "rotation",
@@ -148,7 +148,7 @@
       "translation_target": {
         "x_meters": 3.0,
         "y_meters": 1.8,
-        "intermediate_handoff_radius_meters": 0.2
+        "intermediate_handoff_radius_meters": 0.6
       },
       "rotation_target": {
         "rotation_radians": 0.3490658503988659,
@@ -163,7 +163,7 @@
     {
       "type": "event_trigger",
       "t_ratio": 0.0,
-      "lib_key": "intake_agitate"
+      "lib_key": "intake_agitate_retract"
     },
     {
       "type": "rotation",

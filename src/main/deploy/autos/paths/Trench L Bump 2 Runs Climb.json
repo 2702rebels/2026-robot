@@ -5,7 +5,7 @@
       "translation_target": {
         "x_meters": 4.1,
         "y_meters": 7.44,
-        "intermediate_handoff_radius_meters": 0.2
+        "intermediate_handoff_radius_meters": 0.6
       },
       "rotation_target": {
         "rotation_radians": -1.5707963267948966,
@@ -57,7 +57,7 @@
       "translation_target": {
         "x_meters": 3.2,
         "y_meters": 5.6,
-        "intermediate_handoff_radius_meters": 0.2
+        "intermediate_handoff_radius_meters": 0.6
       },
       "rotation_target": {
         "rotation_radians": -3.141592653589793,
@@ -72,17 +72,17 @@
     {
       "type": "event_trigger",
       "t_ratio": 0.0,
-      "lib_key": "intake_stop"
-    },
-    {
-      "type": "event_trigger",
-      "t_ratio": 0.0,
       "lib_key": "shoot_6"
     },
     {
       "type": "event_trigger",
-      "t_ratio": 0.0,
-      "lib_key": "intake_agitate"
+      "t_ratio": 0.4,
+      "lib_key": "intake_stop"
+    },
+    {
+      "type": "event_trigger",
+      "t_ratio": 0.4,
+      "lib_key": "intake_agitate_2"
     },
     {
       "type": "rotation",
@@ -147,11 +147,11 @@
       "type": "waypoint",
       "translation_target": {
         "x_meters": 3.2,
-        "y_meters": 5.6,
-        "intermediate_handoff_radius_meters": 0.2
+        "y_meters": 5.9,
+        "intermediate_handoff_radius_meters": 0.6
       },
       "rotation_target": {
-        "rotation_radians": 0.0,
+        "rotation_radians": -0.5235987755982988,
         "profiled_rotation": true
       }
     },
@@ -163,18 +163,18 @@
     {
       "type": "event_trigger",
       "t_ratio": 0.10000000000000009,
-      "lib_key": "intake_agitate"
+      "lib_key": "intake_agitate_retract"
     },
     {
       "type": "rotation",
-      "rotation_radians": 0.5235987755982988,
+      "rotation_radians": 1.0471975511965976,
       "t_ratio": 1.0,
       "profiled_rotation": true
     },
     {
       "type": "translation",
-      "x_meters": 2.0,
-      "y_meters": 5.3,
+      "x_meters": 1.5,
+      "y_meters": 5.6,
       "intermediate_handoff_radius_meters": 0.2
     },
     {
