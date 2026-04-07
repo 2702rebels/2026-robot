@@ -146,6 +146,8 @@ public final class Climb extends SubsystemBase implements EnergyReporter {
       } else if (getPosition().lt(setpoint) && state != State.kEngaging) {
         controlProfiled.Velocity = __kMaxVelocity * 1.4;
         motor.setControl(controlProfiled.withPosition(position));
+      } else if (setpoint.in(Inches) == 0 && isAtSetpoint()) {
+        motor.stopMotor();
       } else {
         motor.setControl(control.withPosition(position));
       }

@@ -34,7 +34,7 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
   // MAKE SURE TO UPDATE THESE VALUES AFTER TUNING
   // DO NOT USE THESE VALUES DIRECTLY IN PERIODIC CODE,
   // USE THEM TO INITIALIZE TUNABLE VALUES AND CONTROLLERS
-  private static final double __kP0 = 50;
+  private static final double __kP0 = 100;
   private static final double __kD0 = 2;
 
   private static final double __kS = 1.5;

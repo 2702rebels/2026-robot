@@ -35,7 +35,7 @@ public final class Field {
   public static final double kNeutralZoneNear = kFieldHalfLength - Units.inchesToMeters(120);
 
   /** Neutral zone far side */
-  public static final double kNeutralZoneFar = kFieldHalfLength - Units.inchesToMeters(120);
+  public static final double kNeutralZoneFar = kFieldHalfLength + Units.inchesToMeters(120);
 
   /** Middle of the hub center line */
   public static final double kHubLineX = 4.625;
@@ -190,8 +190,8 @@ public final class Field {
   private static double kTrenchZoneThreshold = Units.inchesToMeters(12);
 
   /**
-   * Determines whether the specified pose falls within the either trench zone on both alliance
-   * sides close to the center line +- threshold.
+   * Determines whether the specified translation (XY) falls within either trench zone on either
+   * alliance side close to the center line +- threshold.
    */
   public static boolean isInTrenchZone(Translation2d xy) {
     final var x = xy.getX();
@@ -260,5 +260,46 @@ public final class Field {
 
     final var dy = Math.abs(transformY(kTowerCenter.getY()) - pose.getY());
     return dy > kTowerSafeRadius;
+  }
+
+  public static enum FieldZone {
+    kAlliance,
+    kNeutral,
+    kOpponentAlliance,
+    kTrenchLeft,
+    kTrenchRight,
+    kBumpLeft,
+    kBumpRight,
+  }
+
+  /** Returns the zone the pose translation falls within. */
+  public static FieldZone getZone(Translation2d xy) {
+    // transform coordinates to be expressed in the blue-alliance origin
+    final var x = transformX(xy.getX());
+    final var y = transformY(xy.getY());
+
+    // use X coordinate to dissect the field first
+    if (x <= kStartingLineX) {
+      return FieldZone.kAlliance;
+    }
+
+    if (x >= kFieldLength - kStartingLineX) {
+      return FieldZone.kOpponentAlliance;
+    }
+
+    if (x >= kNeutralZoneNear && x <= kNeutralZoneFar) {
+      return FieldZone.kNeutral;
+    }
+
+    // we are within trench/bump, use Y coordinate to dissect
+    if (y <= kTrenchWidth) {
+      return FieldZone.kTrenchRight;
+    }
+
+    if (y >= kFieldWidth - kTrenchWidth) {
+      return FieldZone.kTrenchLeft;
+    }
+
+    return y <= kFieldHalfWidth ? FieldZone.kBumpRight : FieldZone.kBumpLeft;
   }
 }

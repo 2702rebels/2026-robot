@@ -119,6 +119,7 @@ public class RobotState {
   private Time phaseElapsedTime = Seconds.zero();
   private Time phaseRemainingTime = Seconds.zero();
   private boolean hubActive;
+  private Field.FieldZone fieldZone = Field.FieldZone.kAlliance;
 
   private final ShotCalculator shotCalculator;
   private final ShotCalculator passCalculator;
@@ -340,6 +341,12 @@ public class RobotState {
     return hubActive;
   }
 
+  /** Robot's current field zone */
+  @Logged(name = "Field.Zone", importance = Importance.CRITICAL)
+  public Field.FieldZone getFieldZone() {
+    return fieldZone;
+  }
+
   /** Binds drivetrain. */
   public void bind(CommandSwerveDrivetrain drivetrain) {
     this.drivetrain = drivetrain;
@@ -488,11 +495,14 @@ public class RobotState {
     phaseRemainingTime = Seconds.of(phaseInfo.remainingTime());
     hubActive = phaseInfo.active();
 
-    // determine effective turret angle and shot parameters
     final var pose = getRobotPose();
     final var poseXY = pose.getTranslation();
     final var speeds = drivetrain.getFieldSpeeds();
 
+    // update robot's current zone
+    fieldZone = Field.getZone(poseXY);
+
+    // determine effective turret angle and shot parameters
     if (Field.isInPassingZone(poseXY)) {
       shotParameters = passCalculator.calculate(pose, speeds, getPassingTarget());
 

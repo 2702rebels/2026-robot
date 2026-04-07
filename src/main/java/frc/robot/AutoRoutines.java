@@ -2,6 +2,7 @@ package frc.robot;
 
 import static edu.wpi.first.units.Units.Seconds;
 
+import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
@@ -97,6 +98,14 @@ public class AutoRoutines {
     return container.intake.agitate().withTimeout(duration).asProxy();
   }
 
+  private Command intakeAgitateAndRetract(Time duration) {
+    return Commands.sequence(intakeAgitate(duration), intakeRetract());
+  }
+
+  private Command intakeAgitate2() {
+    return Commands.sequence(intakeAgitate(Seconds.of(2)), intakeAgitate(Seconds.of(3)));
+  }
+
   private Command burp(Time duration) {
     return container.intake.burp().withTimeout(duration).asProxy();
   }
@@ -125,6 +134,9 @@ public class AutoRoutines {
     FollowPath.registerEventTrigger("intake_extend", intakeExtend());
     FollowPath.registerEventTrigger("intake_retract", intakeRetract());
     FollowPath.registerEventTrigger("intake_agitate", intakeAgitate(Seconds.of(5)));
+    FollowPath.registerEventTrigger(
+        "intake_agitate_retract", intakeAgitateAndRetract(Seconds.of(5)));
+    FollowPath.registerEventTrigger("intake_agitate_2", intakeAgitate2());
     FollowPath.registerEventTrigger("burp", burp(Seconds.of(1)));
     FollowPath.registerEventTrigger("shoot_4", shoot(Seconds.of(4)));
     FollowPath.registerEventTrigger("shoot_5", shoot(Seconds.of(5)));
@@ -201,19 +213,32 @@ public class AutoRoutines {
           towerRightEndpoint.translationTarget().translation().plus(new Translation2d(0.2, 0)),
           Rotation2d.fromDegrees(-90));
 
-  private static final Path.PathConstraints towerPathConstraints =
-      new Path.PathConstraints()
-          .setMaxVelocityMetersPerSec(
-              new Path.RangedConstraint(2.0, 0, 1),
-              new Path.RangedConstraint(0.4, 1, Integer.MAX_VALUE));
+  private static final Path.RangedConstraint towerPathConstraint1 =
+      new Path.RangedConstraint(0.4, 1, Integer.MAX_VALUE);
+
+  private static final double kTimeToClimbApproachSeconds = 1.25;
 
   private static Path createTowerPath(TowerPathSide side, Pose2d pose) {
-    final var intialTranslation = new Path.TranslationTarget(pose.getTranslation());
-    return side == TowerPathSide.kRight
-        ? new Path(
-            towerPathConstraints.copy(), intialTranslation, towerRightApproach, towerRightEndpoint)
-        : new Path(
-            towerPathConstraints.copy(), intialTranslation, towerLeftApproach, towerLeftEndpoint);
+    // the pose is already transformed (flipped) if necessary
+    final var poseXY = pose.getTranslation();
+
+    // determine max speed based on how far are we from the approach endpoint
+    final var approach = side == TowerPathSide.kRight ? towerRightApproach : towerLeftApproach;
+    final var endpoint = side == TowerPathSide.kRight ? towerRightEndpoint : towerLeftEndpoint;
+
+    final var distance = poseXY.getDistance(approach.translationTarget().translation());
+    final var maxVelocity = MathUtil.clamp(distance / kTimeToClimbApproachSeconds, 0.5, 2.0);
+
+    final var constraints =
+        new Path.PathConstraints()
+            .setMaxVelocityMetersPerSec(
+                new Path.RangedConstraint(maxVelocity, 0, 1), towerPathConstraint1);
+
+    return new Path(
+        constraints,
+        new Path.Waypoint(poseXY, approach.rotationTarget().rotation()),
+        approach,
+        endpoint);
   }
 
   /** Runs automatic climbing sequence if the robot is within the alliance zone. */
@@ -222,7 +247,7 @@ public class AutoRoutines {
         () -> {
           // must be relatively close to the tower to initiate the sequence
           final var pose = drivetrain.getPose();
-          if (!Field.isInShootingZone(pose.getTranslation())) {
+          if (state.getFieldZone() != Field.FieldZone.kAlliance) {
             return Commands.none();
           }
 
