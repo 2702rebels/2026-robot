@@ -103,7 +103,8 @@ public class AutoRoutines {
   }
 
   private Command intakeAgitate2() {
-    return Commands.sequence(intakeAgitate(Seconds.of(2)), intakeAgitate(Seconds.of(3)));
+    return Commands.sequence(
+        intakeAgitate(Seconds.of(2)), Commands.waitSeconds(0.5), intakeAgitate(Seconds.of(2.5)));
   }
 
   private Command burp(Time duration) {
@@ -112,6 +113,9 @@ public class AutoRoutines {
 
   private final Path trenchLBump2Runs = new Path("Trench L Bump 2 Runs");
   private final Path trenchRBump2Runs; // mirrored from [l]eft version
+
+  private final Path trenchLBump2RunsReckless = new Path("Trench L Bump 2 Runs Reckless");
+  private final Path trenchRBump2RunsReckless; // mirrored from [l]eft version
 
   private final Path trenchLBump2RunsClimb = new Path("Trench L Bump 2 Runs Climb");
   private final Path trenchRBump2RunsClimb = new Path("Trench R Bump 2 Runs Climb");
@@ -166,6 +170,9 @@ public class AutoRoutines {
 
     trenchRBump2Runs = trenchLBump2Runs.copy();
     trenchRBump2Runs.mirror();
+
+    trenchRBump2RunsReckless = trenchLBump2RunsReckless.copy();
+    trenchRBump2RunsReckless.mirror();
   }
 
   public Command trenchLBump2Runs() {
@@ -174,6 +181,14 @@ public class AutoRoutines {
 
   public Command trenchRBump2Runs() {
     return pathBuilder.build(trenchRBump2Runs);
+  }
+
+  public Command trenchLBump2RunsReckless() {
+    return pathBuilder.build(trenchLBump2RunsReckless);
+  }
+
+  public Command trenchRBump2RunsReckless() {
+    return pathBuilder.build(trenchRBump2RunsReckless);
   }
 
   public Command trenchLBump2RunsClimb() {
