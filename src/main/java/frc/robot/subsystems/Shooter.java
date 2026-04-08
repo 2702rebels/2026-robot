@@ -46,10 +46,10 @@ public final class Shooter extends SubsystemBase implements EnergyReporter {
   private static final double __kHoodP = 15;
   private static final double __kHoodD = 0.5;
 
-  private static final double __kHoodParkAngle = 10;
-  private static final double __kHoodDefaultAngle = 10;
+  private static final double __kHoodParkAngle = 5;
+  private static final double __kHoodDefaultAngle = 5;
 
-  private static final double __kHoodManual = 20;
+  private static final double __kHoodManual = 15;
   private static final double __kFlywheelManual = 3700; // RPMs
   private static final double __kFlywheelTrim = 0; // RPMs
 
@@ -87,7 +87,7 @@ public final class Shooter extends SubsystemBase implements EnergyReporter {
   private static final double kHoodStatorCurrentLimit = 20.0;
 
   private static final double kHoodPositionMin = 0.0; // degrees
-  private static final double KHoodPositionMax = 30.0; // degrees
+  private static final double KHoodPositionMax = 25.0; // degrees
   private static final double kHoodPositionTolerance = 1.0; // degrees
   private static final double kHoodConversionFactor = 108.0;
 
@@ -300,12 +300,12 @@ public final class Shooter extends SubsystemBase implements EnergyReporter {
             Commands.print("Shooter initialized"),
             // hood sequence
             runOnce(() -> kHoodManualOverride.set(true)),
-            Commands.print("Hood to 10"),
-            run(() -> kHoodManual.set(10)).withTimeout(Seconds.of(2)),
-            Commands.print("Hood to 20"),
-            run(() -> kHoodManual.set(20)).withTimeout(Seconds.of(2)),
-            Commands.print("Hood to 30"),
-            run(() -> kHoodManual.set(30)).withTimeout(Seconds.of(2)),
+            Commands.print("Hood to 5"),
+            run(() -> kHoodManual.set(5)).withTimeout(Seconds.of(2)),
+            Commands.print("Hood to 15"),
+            run(() -> kHoodManual.set(15)).withTimeout(Seconds.of(2)),
+            Commands.print("Hood to 25"),
+            run(() -> kHoodManual.set(25)).withTimeout(Seconds.of(2)),
             Commands.print("Hood parked"),
             parkHood().withTimeout(Seconds.of(2)),
             run(() -> kHoodManual.set(0)).withTimeout(Seconds.of(2)),

@@ -196,32 +196,35 @@ public class RobotState {
     shotCalculator = new ShotCalculator(kShooterOffsetXY);
     passCalculator = new ShotCalculator(kShooterOffsetXY);
 
+    // accounts of adjustments made to the hood after LUT was constructed
+    final var hoodDatum = -5.0;
+
     // shooting
-    shotCalculator.putLUTEntry(Meters.of(1.25), 3050, 10, 0.75);
-    shotCalculator.putLUTEntry(Meters.of(1.50), 3000, 10, 0.75);
-    shotCalculator.putLUTEntry(Meters.of(1.80), 2900, 15, 0.80);
-    shotCalculator.putLUTEntry(Meters.of(2.00), 3000, 15, 0.85);
-    shotCalculator.putLUTEntry(Meters.of(2.50), 3150, 20, 0.92);
-    shotCalculator.putLUTEntry(Meters.of(2.75), 3300, 20, 0.95);
-    shotCalculator.putLUTEntry(Meters.of(3.00), 3450, 20, 1.00);
-    shotCalculator.putLUTEntry(Meters.of(3.20), 3550, 20, 1.05);
-    shotCalculator.putLUTEntry(Meters.of(3.50), 3800, 20, 1.10);
-    shotCalculator.putLUTEntry(Meters.of(3.80), 4000, 20, 1.15);
-    shotCalculator.putLUTEntry(Meters.of(4.00), 4075, 20, 1.18);
-    shotCalculator.putLUTEntry(Meters.of(4.20), 4150, 20, 1.21);
-    shotCalculator.putLUTEntry(Meters.of(4.50), 4300, 20, 1.26);
-    shotCalculator.putLUTEntry(Meters.of(5.60), 4400, 30, 1.45);
-    shotCalculator.putLUTEntry(Meters.of(5.80), 4500, 30, 1.50);
+    shotCalculator.putLUTEntry(Meters.of(1.25), 3050, hoodDatum + 10, 0.75);
+    shotCalculator.putLUTEntry(Meters.of(1.50), 3000, hoodDatum + 10, 0.75);
+    shotCalculator.putLUTEntry(Meters.of(1.80), 2900, hoodDatum + 15, 0.80);
+    shotCalculator.putLUTEntry(Meters.of(2.00), 3000, hoodDatum + 15, 0.85);
+    shotCalculator.putLUTEntry(Meters.of(2.50), 3150, hoodDatum + 20, 0.92);
+    shotCalculator.putLUTEntry(Meters.of(2.75), 3300, hoodDatum + 20, 0.95);
+    shotCalculator.putLUTEntry(Meters.of(3.00), 3450, hoodDatum + 20, 1.00);
+    shotCalculator.putLUTEntry(Meters.of(3.20), 3550, hoodDatum + 20, 1.05);
+    shotCalculator.putLUTEntry(Meters.of(3.50), 3800, hoodDatum + 20, 1.10);
+    shotCalculator.putLUTEntry(Meters.of(3.80), 4000, hoodDatum + 20, 1.15);
+    shotCalculator.putLUTEntry(Meters.of(4.00), 4075, hoodDatum + 20, 1.18);
+    shotCalculator.putLUTEntry(Meters.of(4.20), 4150, hoodDatum + 20, 1.21);
+    shotCalculator.putLUTEntry(Meters.of(4.50), 4300, hoodDatum + 20, 1.26);
+    shotCalculator.putLUTEntry(Meters.of(5.60), 4400, hoodDatum + 30, 1.45);
+    shotCalculator.putLUTEntry(Meters.of(5.80), 4500, hoodDatum + 30, 1.50);
 
     // passing
-    passCalculator.putLUTEntry(Meters.of(3.00), 2900, 25, 1.00);
-    passCalculator.putLUTEntry(Meters.of(4.00), 3600, 25, 1.20);
-    passCalculator.putLUTEntry(Meters.of(5.00), 3850, 25, 1.35);
-    passCalculator.putLUTEntry(Meters.of(6.00), 4300, 25, 1.50);
-    passCalculator.putLUTEntry(Meters.of(7.00), 4800, 30, 1.70);
-    passCalculator.putLUTEntry(Meters.of(8.00), 5250, 30, 1.85);
-    passCalculator.putLUTEntry(Meters.of(10.0), 6000, 30, 2.0);
-    passCalculator.putLUTEntry(Meters.of(12.0), 6500, 30, 2.5);
+    passCalculator.putLUTEntry(Meters.of(3.00), 2900, hoodDatum + 25, 1.00);
+    passCalculator.putLUTEntry(Meters.of(4.00), 3600, hoodDatum + 25, 1.20);
+    passCalculator.putLUTEntry(Meters.of(5.00), 3850, hoodDatum + 25, 1.35);
+    passCalculator.putLUTEntry(Meters.of(6.00), 4300, hoodDatum + 25, 1.50);
+    passCalculator.putLUTEntry(Meters.of(7.00), 4800, hoodDatum + 30, 1.70);
+    passCalculator.putLUTEntry(Meters.of(8.00), 5250, hoodDatum + 30, 1.85);
+    passCalculator.putLUTEntry(Meters.of(10.0), 6000, hoodDatum + 30, 2.0);
+    passCalculator.putLUTEntry(Meters.of(12.0), 6500, hoodDatum + 30, 2.5);
   }
 
   /** Odometry trust (0 - no trust, 1 - full trust) */
