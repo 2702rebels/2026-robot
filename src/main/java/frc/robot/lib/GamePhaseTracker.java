@@ -81,6 +81,24 @@ public final class GamePhaseTracker {
     return Alliance.Blue;
   }
 
+  /**
+   * Returns the timestamp (seconds) since the start of the current period.
+   *
+   * <p>Can be switched to use FMS supplied time, instead of internal timer, for situations when the
+   * robot code restarted during the match.
+   */
+  private double getPeriodTimestamp() {
+    if (useFMStime.get()) {
+      // match time returns _remaining_ time in the period,
+      // we want _elapsed_ time instead
+      final var matchTime = DriverStation.getMatchTime();
+      final var period = DriverStation.isAutonomousEnabled() ? 20.0 : 140.0;
+      return period - matchTime;
+    }
+
+    return timer.get();
+  }
+
   /** Restarts the timer when next period starts. */
   public void startPeriod() {
     timer.restart();
@@ -88,12 +106,12 @@ public final class GamePhaseTracker {
 
   /** Returns elapsed time of the current period. */
   public Time getPeriodElapsedTime() {
-    return Seconds.of(timer.get());
+    return Seconds.of(getPeriodTimestamp());
   }
 
   /** Returns current phase information. */
   public PhaseInfo getPhase() {
-    final var timestamp = timer.get();
+    final var timestamp = getPeriodTimestamp();
     final var alliance = DriverStation.getAlliance().orElse(Alliance.Blue);
     final var inactive = getFirstInactiveAlliance() == alliance;
 
@@ -132,4 +150,7 @@ public final class GamePhaseTracker {
     return new PhaseInfo(
         Phase.EndGame, timestamp - kShift4Time, Math.max(0, kEndGameTime - timestamp), true);
   }
+
+  private static final Tunable.BooleanValue useFMStime =
+      Tunable.value("Control/UseFMSTime", false, true);
 }
