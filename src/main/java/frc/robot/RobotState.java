@@ -213,6 +213,7 @@ public class RobotState {
     shotCalculator.putLUTEntry(Meters.of(4.00), 4075, hoodDatum + 20, 1.18);
     shotCalculator.putLUTEntry(Meters.of(4.20), 4150, hoodDatum + 20, 1.21);
     shotCalculator.putLUTEntry(Meters.of(4.50), 4300, hoodDatum + 20, 1.26);
+    shotCalculator.putLUTEntry(Meters.of(5.00), 4550, hoodDatum + 20, 1.35);
     shotCalculator.putLUTEntry(Meters.of(5.60), 4400, hoodDatum + 30, 1.45);
     shotCalculator.putLUTEntry(Meters.of(5.80), 4500, hoodDatum + 30, 1.50);
 
@@ -721,7 +722,7 @@ public class RobotState {
         kTrenchZonePredictiveTime);
   }
 
-  @Logged(name = "Tuning/ActualShotDistance", importance = Importance.DEBUG)
+  @Logged(name = "Tuning/ActualShotDistance", importance = Importance.CRITICAL)
   public Distance getActualShotDistance() {
     final var target = Field.transform(Field.kHubCenter);
     return Meters.of(getShooterFieldPose(getRobotPose()).minus(target).getNorm());
