@@ -104,7 +104,7 @@ public class AutoRoutines {
 
   private Command intakeAgitate2() {
     return Commands.sequence(
-        intakeAgitate(Seconds.of(2)), Commands.waitSeconds(0.5), intakeAgitate(Seconds.of(2.5)));
+        intakeAgitate(Seconds.of(1)), Commands.waitSeconds(0.5), intakeAgitate(Seconds.of(1.5)));
   }
 
   private Command burp(Time duration) {
@@ -137,9 +137,9 @@ public class AutoRoutines {
     FollowPath.registerEventTrigger("intake_stop", intakeStop());
     FollowPath.registerEventTrigger("intake_extend", intakeExtend());
     FollowPath.registerEventTrigger("intake_retract", intakeRetract());
-    FollowPath.registerEventTrigger("intake_agitate", intakeAgitate(Seconds.of(5)));
+    FollowPath.registerEventTrigger("intake_agitate", intakeAgitate(Seconds.of(4)));
     FollowPath.registerEventTrigger(
-        "intake_agitate_retract", intakeAgitateAndRetract(Seconds.of(5)));
+        "intake_agitate_retract", intakeAgitateAndRetract(Seconds.of(4)));
     FollowPath.registerEventTrigger("intake_agitate_2", intakeAgitate2());
     FollowPath.registerEventTrigger("burp", burp(Seconds.of(1)));
     FollowPath.registerEventTrigger("shoot_4", shoot(Seconds.of(4)));
