@@ -212,7 +212,7 @@ public class AutoRoutines {
 
   // tower left (upper) side
   private static final Path.Waypoint towerLeftEndpoint =
-      new Path.Waypoint(new Translation2d(1.090, 4.530), Rotation2d.fromDegrees(90));
+      new Path.Waypoint(new Translation2d(1.090, 4.60), Rotation2d.fromDegrees(90));
 
   private static final Path.Waypoint towerLeftApproach =
       new Path.Waypoint(
@@ -221,7 +221,7 @@ public class AutoRoutines {
 
   // tower right (lower) side
   private static final Path.Waypoint towerRightEndpoint =
-      new Path.Waypoint(new Translation2d(1.08, 2.940), Rotation2d.fromDegrees(-90));
+      new Path.Waypoint(new Translation2d(1.08, 2.88), Rotation2d.fromDegrees(-90));
 
   private static final Path.Waypoint towerRightApproach =
       new Path.Waypoint(
