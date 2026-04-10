@@ -44,8 +44,8 @@ import java.util.function.BooleanSupplier;
 
 public class RobotContainer {
   private static final int kControllerDriverPort = 0;
-  private static final int kButtonatorPort = 1;
-  private static final int kControllerOperatorPort = 2;
+  private static final int kControllerOperatorPort = 1;
+  private static final int kButtonatorPort = 2;
 
   private final RobotState state = RobotState.getInstance();
   private final CommandXboxController controllerDriver =
