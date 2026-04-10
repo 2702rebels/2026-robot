@@ -39,6 +39,7 @@ public class ShotCalculator {
   public static record ShotParameters(
       Translation2d target,
       Distance distance,
+      Distance virtualDistance,
       Time tof,
       double shooterVelocity,
       double shooterAngle,
@@ -210,6 +211,7 @@ public class ShotCalculator {
     return new ShotParameters(
         new Translation2d(tx, ty),
         Meters.of(distance),
+        Meters.of(result.distance),
         Seconds.of(result.tof),
         r.velocity(),
         r.angle(),

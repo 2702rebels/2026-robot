@@ -72,7 +72,7 @@ public class RobotState {
 
   // shooting constants
   private static final Distance kMinScoreDistance = Meters.of(1.5);
-  private static final Distance kMaxScoreDistance = Meters.of(6);
+  private static final Distance kMaxScoreDistance = Meters.of(6.0);
   private static final double kMaxScoreSpeed = 2.5; // m/s
   private static final Time kMechanismDelay = Seconds.of(0.15);
 
@@ -126,7 +126,7 @@ public class RobotState {
 
   private ShotCalculator.ShotParameters shotParameters =
       new ShotCalculator.ShotParameters(
-          Translation2d.kZero, Meters.zero(), Seconds.zero(), 0, 0, 0, 0);
+          Translation2d.kZero, Meters.zero(), Meters.zero(), Seconds.zero(), 0, 0, 0, 0);
 
   private boolean shotPossible;
 
@@ -144,7 +144,7 @@ public class RobotState {
 
   @Logged(name = "Shot/Distance", importance = Importance.CRITICAL)
   public double getShotDistance() {
-    return shotParameters.distance().in(Meters);
+    return shotParameters.virtualDistance().in(Meters);
   }
 
   @Logged(name = "Shot/ToF", importance = Importance.CRITICAL)
