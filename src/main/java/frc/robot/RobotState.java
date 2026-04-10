@@ -142,6 +142,16 @@ public class RobotState {
     return shotVelocity.lastValue();
   }
 
+  @Logged(name = "Shot/Distance", importance = Importance.CRITICAL)
+  public double getShotDistance() {
+    return shotParameters.distance().in(Meters);
+  }
+
+  @Logged(name = "Shot/ToF", importance = Importance.CRITICAL)
+  public double getShotToF() {
+    return shotParameters.tof().in(Seconds);
+  }
+
   @Logged(name = "Shot/Angle", importance = Importance.CRITICAL)
   public double getShotAngle() {
     return shotAngle.lastValue();
@@ -346,7 +356,7 @@ public class RobotState {
   }
 
   /** Robot's current field zone */
-  @Logged(name = "Field.Zone", importance = Importance.CRITICAL)
+  @Logged(name = "Field/Zone", importance = Importance.CRITICAL)
   public Field.FieldZone getFieldZone() {
     return fieldZone;
   }

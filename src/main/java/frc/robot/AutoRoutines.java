@@ -194,14 +194,14 @@ public class AutoRoutines {
   public Command trenchLBump2RunsClimb() {
     return pathBuilder
         .build(trenchLBump2RunsClimb)
-        .withTimeout(Seconds.of(19.6))
+        .withTimeout(Seconds.of(18.6))
         .andThen(climbEngage());
   }
 
   public Command trenchRBump2RunsClimb() {
     return pathBuilder
         .build(trenchRBump2RunsClimb)
-        .withTimeout(Seconds.of(19.6))
+        .withTimeout(Seconds.of(18.6))
         .andThen(climbEngage());
   }
 
