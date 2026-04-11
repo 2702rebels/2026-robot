@@ -279,7 +279,7 @@ public class AutoRoutines {
           return climbExtend()
               .andThen(
                   pathBuilder
-                      .build(createTowerPath(side, Field.flip(pose)))
+                      .build(createTowerPath(side, Field.transform(pose)))
                       .withTimeout(Seconds.of(3)))
               .andThen(climbEngage());
         },
