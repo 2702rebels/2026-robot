@@ -412,7 +412,8 @@ public class RobotContainer {
 
   private boolean shouldApplyShootSlowdown() {
     return shootButton.getAsBoolean()
-        && Field.isInShootingZone(drivetrain.getPose().getTranslation());
+        && (Field.isInShootingZone(drivetrain.getPose().getTranslation()) ||
+            kPassingSlowdown && Field.isInPassingZone(drivetrain.getPose().getTranslation()));
   }
 
   /** Gets modifier of the rotational velocity. */
@@ -432,5 +433,7 @@ public class RobotContainer {
   private static final Tunable.DoubleValue kPreciseRotation = Tunable.value("Control/PreciseRotation", 0.2);
   private static final Tunable.DoubleValue kShootSlowdownTranslation = Tunable.value("Control/ShootSlowdown/Translation", 0.3, true);
   private static final Tunable.DoubleValue kShootSlowdownRotation = Tunable.value("Control/ShootSlowdown/Rotation", 0.25, true);
+  private static final Tunable.BooleanValue kPassingSlowdown = Tunable.value("Control/PassingSlowdown", false, true);
+
   // spotless:on
 }
