@@ -103,9 +103,6 @@ public final class Shooter extends SubsystemBase implements EnergyReporter {
   @Logged(name = "MasterOverride", importance = Importance.CRITICAL)
   public boolean masterOverride = false;
 
-  @Logged(name = "IsReady", importance = Importance.CRITICAL)
-  public final BooleanSupplier isReady;
-
   private final BooleanSupplier isAtSetpointDebounced;
 
   public Shooter(CANBus canbus) {
@@ -179,9 +176,7 @@ public final class Shooter extends SubsystemBase implements EnergyReporter {
 
     hoodMotor.resetPosition(0);
 
-    // debounced ready state based on the shooter state
     isAtSetpointDebounced = Misc.debounce(this::isAtSetpoint, 0.150, DebounceType.kFalling);
-    isReady = () -> flywheelSetpoint > 0 && isAtSetpointDebounced.getAsBoolean();
   }
 
   @Override
@@ -228,9 +223,13 @@ public final class Shooter extends SubsystemBase implements EnergyReporter {
     }
 
     if (flywheelSetpoint > 0) {
-      flywheelMotorLeader.setControl(
-          flywheelControl.withVelocity(
-              RotationsPerSecond.convertFrom(flywheelSetpoint, RPM) * kFlywheelConversionFactor));
+      if (flywheelSetpoint >= kFlywheelVelocityMax) {
+        flywheelMotorLeader.set(1.0); // max output
+      } else {
+        flywheelMotorLeader.setControl(
+            flywheelControl.withVelocity(
+                RotationsPerSecond.convertFrom(flywheelSetpoint, RPM) * kFlywheelConversionFactor));
+      }
     } else {
       flywheelMotorLeader.stopMotor();
     }
@@ -259,6 +258,16 @@ public final class Shooter extends SubsystemBase implements EnergyReporter {
   public boolean isAtSetpoint() {
     return MathUtil.isNear(hoodSetpoint.in(Degrees), getAngle().in(Degrees), kHoodPositionTolerance)
         && MathUtil.isNear(flywheelSetpoint, getVelocity(), kFlywheelVelocityTolerance);
+  }
+
+  @Logged(name = "IsReadyPassing", importance = Importance.CRITICAL)
+  public boolean isReadyPassing() {
+    return flywheelSetpoint > 0 && getVelocity() >= flywheelSetpoint * 0.4;
+  }
+
+  @Logged(name = "IsReady", importance = Importance.CRITICAL)
+  public boolean isReady() {
+    return flywheelSetpoint > 0 && isAtSetpointDebounced.getAsBoolean();
   }
 
   @Logged(name = "Angle", importance = Importance.CRITICAL)

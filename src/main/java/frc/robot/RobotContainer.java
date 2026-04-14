@@ -157,7 +157,17 @@ public class RobotContainer {
     // must be initialized before auto routines are constructed
     // shooting sequence condition
     canShoot =
-        () -> state.isLevel() && turret.isReady.getAsBoolean() && shooter.isReady.getAsBoolean();
+        () -> {
+          if (state.isLevel() && turret.isReady()) {
+            // if we are passing and not shooting, then we do not care as much about
+            // flywheel (shooter) being at correct velocity
+            return Field.isInPassingZone(drivetrain.getPose().getTranslation())
+                ? shooter.isReadyPassing()
+                : shooter.isReady();
+          }
+
+          return false;
+        };
 
     // auto-climb condition: when FMS connected do not allow auto-climb unless in the end-game
     canAutoClimb = () -> !DriverStation.isFMSAttached() || state.getGamePhase() == Phase.EndGame;
