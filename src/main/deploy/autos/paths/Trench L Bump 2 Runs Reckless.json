@@ -67,11 +67,6 @@
     {
       "type": "event_trigger",
       "t_ratio": 0.0,
-      "lib_key": "burp"
-    },
-    {
-      "type": "event_trigger",
-      "t_ratio": 0.0,
       "lib_key": "shoot_6"
     },
     {
@@ -163,7 +158,7 @@
     {
       "type": "event_trigger",
       "t_ratio": 0.10000000000000002,
-      "lib_key": "intake_agitate"
+      "lib_key": "intake_agitate_2"
     },
     {
       "type": "rotation",
@@ -232,7 +227,7 @@
         "end_ordinal": 4
       },
       {
-        "value": 0.65,
+        "value": 0.6,
         "start_ordinal": 5,
         "end_ordinal": 6
       },
@@ -252,7 +247,7 @@
         "end_ordinal": 10
       },
       {
-        "value": 0.65,
+        "value": 0.6,
         "start_ordinal": 11,
         "end_ordinal": 12
       },

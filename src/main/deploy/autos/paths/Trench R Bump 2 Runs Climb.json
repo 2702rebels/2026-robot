@@ -67,11 +67,6 @@
     {
       "type": "event_trigger",
       "t_ratio": 0.0,
-      "lib_key": "burp"
-    },
-    {
-      "type": "event_trigger",
-      "t_ratio": 0.0,
       "lib_key": "shoot_6"
     },
     {
@@ -225,7 +220,7 @@
         "end_ordinal": 4
       },
       {
-        "value": 0.65,
+        "value": 0.6,
         "start_ordinal": 5,
         "end_ordinal": 6
       },

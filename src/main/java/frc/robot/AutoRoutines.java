@@ -104,7 +104,11 @@ public class AutoRoutines {
 
   private Command intakeAgitate2() {
     return Commands.sequence(
-        intakeAgitate(Seconds.of(1)), Commands.waitSeconds(0.5), intakeAgitate(Seconds.of(1.5)));
+        intakeAgitate(Seconds.of(1)),
+        Commands.waitSeconds(0.5),
+        intakeAgitate(Seconds.of(1)),
+        Commands.waitSeconds(0.5),
+        intakeAgitate(Seconds.of(1)));
   }
 
   private Command burp(Time duration) {
@@ -144,7 +148,7 @@ public class AutoRoutines {
     FollowPath.registerEventTrigger("burp", burp(Seconds.of(1)));
     FollowPath.registerEventTrigger("shoot_4", shoot(Seconds.of(4)));
     FollowPath.registerEventTrigger("shoot_5", shoot(Seconds.of(5)));
-    FollowPath.registerEventTrigger("shoot_6", shoot(Seconds.of(6)));
+    FollowPath.registerEventTrigger("shoot_6", shoot(Seconds.of(6.5)));
 
     Path.setDefaultGlobalConstraints(
         new Path.DefaultGlobalConstraints(
