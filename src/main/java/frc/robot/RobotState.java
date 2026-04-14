@@ -223,9 +223,13 @@ public class RobotState {
     shotCalculator.putLUTEntry(Meters.of(4.00), 4075, hoodDatum + 20, 1.18);
     shotCalculator.putLUTEntry(Meters.of(4.20), 4150, hoodDatum + 20, 1.21);
     shotCalculator.putLUTEntry(Meters.of(4.50), 4300, hoodDatum + 20, 1.26);
-    shotCalculator.putLUTEntry(Meters.of(5.00), 4500, hoodDatum + 20, 1.35);
-    shotCalculator.putLUTEntry(Meters.of(5.60), 4350, hoodDatum + 30, 1.45);
-    shotCalculator.putLUTEntry(Meters.of(5.80), 4450, hoodDatum + 30, 1.50);
+    shotCalculator.putLUTEntry(Meters.of(5.00), 4600, hoodDatum + 20, 1.35);
+    shotCalculator.putLUTEntry(Meters.of(5.25), 4750, hoodDatum + 20, 1.39);
+    shotCalculator.putLUTEntry(Meters.of(5.50), 4600, hoodDatum + 25, 1.43);
+    shotCalculator.putLUTEntry(Meters.of(5.60), 4750, hoodDatum + 25, 1.45);
+    shotCalculator.putLUTEntry(Meters.of(6.00), 4900, hoodDatum + 25, 1.52);
+    shotCalculator.putLUTEntry(Meters.of(6.50), 5200, hoodDatum + 25, 1.60);
+    shotCalculator.putLUTEntry(Meters.of(6.75), 5450, hoodDatum + 25, 1.65);
 
     // passing
     passCalculator.putLUTEntry(Meters.of(3.00), 2900, hoodDatum + 25, 1.00);
@@ -234,8 +238,8 @@ public class RobotState {
     passCalculator.putLUTEntry(Meters.of(6.00), 4300, hoodDatum + 25, 1.50);
     passCalculator.putLUTEntry(Meters.of(7.00), 4800, hoodDatum + 30, 1.70);
     passCalculator.putLUTEntry(Meters.of(8.00), 5250, hoodDatum + 30, 1.85);
-    passCalculator.putLUTEntry(Meters.of(10.0), 6000, hoodDatum + 30, 2.0);
-    passCalculator.putLUTEntry(Meters.of(12.0), 6500, hoodDatum + 30, 2.5);
+    passCalculator.putLUTEntry(Meters.of(10.0), 6000, hoodDatum + 30, 2.00);
+    passCalculator.putLUTEntry(Meters.of(12.0), 6500, hoodDatum + 30, 2.50);
   }
 
   /** Odometry trust (0 - no trust, 1 - full trust) */
