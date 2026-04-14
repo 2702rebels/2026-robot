@@ -113,7 +113,8 @@ public class RobotContainer {
   private final Trigger intakeRetract = controllerDriver.povLeft().or(controllerOperator.povLeft());
   private final Trigger intakeAgitate =
       controllerDriver.leftTrigger().or(controllerOperator.leftTrigger());
-  private final Trigger intakeBurp = buttonator.button(10).or(controllerOperator.y());
+  private final Trigger intakeBurp = controllerOperator.y().or(buttonator.button(10));
+  private final Trigger hopperReverse = controllerOperator.b().or(buttonator.button(11));
 
   private final Trigger autoClimb = controllerDriver.y();
 
@@ -265,6 +266,7 @@ public class RobotContainer {
     intakeRetract.onTrue(intake.retract());
     intakeAgitate.and(intake::isDeployed).whileTrue(intake.agitate());
     intakeBurp.whileTrue(intake.burp());
+    hopperReverse.whileTrue(hopper.reverse());
 
     autoClimb.and(canAutoClimb).onTrue(auto.climb().until(resetButton));
 
@@ -272,11 +274,6 @@ public class RobotContainer {
     buttonator.button(2).onTrue(state.setPassingToTrenchAuto());
     buttonator.button(3).onTrue(state.setPassingToTrenchLeft());
     buttonator.button(4).onTrue(state.setPassingToTrenchRight());
-
-    buttonator.button(11).whileTrue(hopper.reverse());
-
-    // buttonator.button(6).onTrue(auto.trenchLBump2Runs());
-    // buttonator.button(7).onTrue(auto.trenchRBump2Runs());
 
     // self-check
     buttonator.button(12).and(() -> !DriverStation.isFMSAttached()).onTrue(selfCheck());
