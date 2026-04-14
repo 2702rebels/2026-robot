@@ -138,11 +138,10 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
   // duty-cycle used to run initialization sequence
   private double initDutyCycle = 0.05;
 
+  private final BooleanSupplier isAtSetpointDebounced;
+
   @Logged(name = "MasterOverride", importance = Importance.CRITICAL)
   public boolean masterOverride = false;
-
-  @Logged(name = "IsReady", importance = Importance.CRITICAL)
-  public final BooleanSupplier isReady;
 
   public Turret(CANBus canbus, CANduit canduit) {
     motor =
@@ -207,8 +206,7 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
     // adjust initialization direction based on the presumed position
     initDutyCycle *= (getPosition().in(Degrees) >= 0 ? -1 : 1);
 
-    // debounced ready state based on the turret position
-    isReady = Misc.debounce(this::isAtSetpoint, 0.25, DebounceType.kFalling);
+    isAtSetpointDebounced = Misc.debounce(this::isAtSetpoint, 0.250, DebounceType.kFalling);
   }
 
   /**
@@ -411,6 +409,20 @@ public final class Turret extends SubsystemBase implements EnergyReporter {
   @Logged(name = "AtSetpoint", importance = Importance.CRITICAL)
   public boolean isAtSetpoint() {
     return MathUtil.isNear(setpoint.in(Degrees), getPosition().in(Degrees), kTolerance);
+  }
+
+  @Logged(name = "IsReady", importance = Importance.CRITICAL)
+  public boolean isReady() {
+    final var currentPosition = getPosition().in(Degrees);
+    final var currentSetpoint = setpoint.in(Degrees);
+
+    // if setpoint is too far away (i.e. rotating around) then return false
+    // otherwise, use debounced logic
+    if (Math.abs(currentSetpoint - currentPosition) > kLongRangeArc) {
+      return false;
+    }
+
+    return isAtSetpointDebounced.getAsBoolean();
   }
 
   @Logged(name = "Position", importance = Importance.CRITICAL)
