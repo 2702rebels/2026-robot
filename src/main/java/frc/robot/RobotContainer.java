@@ -439,7 +439,7 @@ public class RobotContainer {
   }
 
   // spotless:off
-  private static final Tunable.DoubleValue kEndgameAlert = Tunable.value("Endgame/Alert", 10.0);
+  private static final Tunable.DoubleValue kEndgameAlert = Tunable.value("Endgame/Alert", 12.0);
   private static final Tunable.DoubleValue kPreciseRotation = Tunable.value("Control/PreciseRotation", 0.2);
   private static final Tunable.DoubleValue kShootSlowdownTranslation = Tunable.value("Control/ShootSlowdown/Translation", 0.3, true);
   private static final Tunable.DoubleValue kShootSlowdownRotation = Tunable.value("Control/ShootSlowdown/Rotation", 0.25, true);
