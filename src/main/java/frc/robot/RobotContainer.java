@@ -204,6 +204,8 @@ public class RobotContainer {
     autoChooser.addOption("Right 2 Sprints Over Bump", auto.trenchRBump2Runs());
     autoChooser.addOption("Left 2 Sprints Over Bump and Climb", auto.trenchLBump2RunsClimb());
     autoChooser.addOption("Right 2 Sprints Over Bump and Climb", auto.trenchRBump2RunsClimb());
+    autoChooser.addOption("Left 2 Sprints Over Bump [FAST]", auto.trenchLBump2RunsFast());
+    autoChooser.addOption("Right 2 Sprints Over Bump [FAST]", auto.trenchRBump2RunsFast());
     autoChooser.addOption("Left 2 Sprints Over Bump [RECKLESS]", auto.trenchLBump2RunsReckless());
     autoChooser.addOption("Right 2 Sprints Over Bump [RECKLESS]", auto.trenchRBump2RunsReckless());
 

@@ -118,6 +118,9 @@ public class AutoRoutines {
   private final Path trenchLBump2Runs = new Path("Trench L Bump 2 Runs");
   private final Path trenchRBump2Runs; // mirrored from [l]eft version
 
+  private final Path trenchLBump2RunsFast = new Path("Trench L Bump 2 Runs Fast");
+  private final Path trenchRBump2RunsFast; // mirrored from [l]eft version
+
   private final Path trenchLBump2RunsReckless = new Path("Trench L Bump 2 Runs Reckless");
   private final Path trenchRBump2RunsReckless; // mirrored from [l]eft version
 
@@ -152,7 +155,7 @@ public class AutoRoutines {
 
     Path.setDefaultGlobalConstraints(
         new Path.DefaultGlobalConstraints(
-            3.5, // maximum velocity (m/s)
+            4, // maximum velocity (m/s)
             9.0, // maximum acceleration (m/s^2)
             540, // max angular velocity (deg/s)
             1080, // max angular acceleration (deg/s^2)
@@ -175,6 +178,9 @@ public class AutoRoutines {
     trenchRBump2Runs = trenchLBump2Runs.copy();
     trenchRBump2Runs.mirror();
 
+    trenchRBump2RunsFast = trenchLBump2RunsFast.copy();
+    trenchRBump2RunsFast.mirror();
+
     trenchRBump2RunsReckless = trenchLBump2RunsReckless.copy();
     trenchRBump2RunsReckless.mirror();
   }
@@ -185,6 +191,14 @@ public class AutoRoutines {
 
   public Command trenchRBump2Runs() {
     return pathBuilder.build(trenchRBump2Runs);
+  }
+
+  public Command trenchLBump2RunsFast() {
+    return pathBuilder.build(trenchLBump2RunsFast);
+  }
+
+  public Command trenchRBump2RunsFast() {
+    return pathBuilder.build(trenchRBump2RunsFast);
   }
 
   public Command trenchLBump2RunsReckless() {
